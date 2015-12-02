@@ -1,0 +1,12 @@
+{
+	"InMAPdataTemplate":"path to /geosInmapData_[layer].gob",
+	"NumLayers":47,
+	"NumProcessors":6,
+	"NumIterations":0,
+	"EmissionsShapefiles":[
+		"Emissions entered within script for this version of globalInMAP",
+		"__no_file_here_yet.shp"
+	],
+	"OutputTemplate":"output/output_[layer].geojson",
+	"HTTPport":"8080"
+}
