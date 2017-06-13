@@ -47,7 +47,7 @@ import (
 func AddEmissionsFlux() CellManipulator {
 	return func(c *Cell, Dt float64) {
 		if c.EmisFlux != nil {
-			for i := range PolNames {
+			for i := range c.EmisFlux {
 				c.Cf[i] += c.EmisFlux[i] * Dt
 				c.Ci[i] = c.Cf[i]
 			}

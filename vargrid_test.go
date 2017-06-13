@@ -29,7 +29,7 @@ import (
 
 func TestVarGridCreate(t *testing.T) {
 
-	cfg, ctmdata, pop, popIndices, mr := VarGridData()
+	cfg, ctmdata, pop, popIndices, mr := VarGridTestData()
 	emis := &Emissions{
 		data: rtree.NewTree(25, 50),
 	}
@@ -526,7 +526,7 @@ func (d *InMAP) testCellAlignment1(t *testing.T) {
 }
 
 func TestGetGeometry(t *testing.T) {
-	cfg, ctmdata, pop, popIndices, mr := VarGridData()
+	cfg, ctmdata, pop, popIndices, mr := VarGridTestData()
 	emis := &Emissions{
 		data: rtree.NewTree(25, 50),
 	}
@@ -665,7 +665,7 @@ func TestReadWriteCTMData(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err = ctmdata.Write(f, cfg.ctmGridXo, cfg.ctmGridYo, cfg.ctmGridDx, cfg.ctmGridDy); err != nil {
+	if err = ctmdata.Write(f, cfg.CTMGridXo, cfg.CTMGridYo, cfg.CTMGridDx, cfg.CTMGridDy); err != nil {
 		t.Fatal(err)
 	}
 

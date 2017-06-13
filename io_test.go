@@ -150,7 +150,7 @@ func TestEmissions(t *testing.T) {
 		t.Error(err)
 		t.FailNow()
 	}
-	cfg, ctmdata, pop, popIndices, mr := VarGridData()
+	cfg, ctmdata, pop, popIndices, mr := VarGridTestData()
 
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
@@ -211,7 +211,7 @@ func TestEmissions(t *testing.T) {
 }
 
 func TestOutputEquation(t *testing.T) {
-	cfg, ctmdata, pop, popIndices, mr := VarGridData()
+	cfg, ctmdata, pop, popIndices, mr := VarGridTestData()
 
 	emis := NewEmissions()
 	emis.Add(&EmisRecord{
@@ -309,7 +309,7 @@ func TestOutputEquation(t *testing.T) {
 }
 
 func BenchmarkOutput(b *testing.B) {
-	cfg, ctmdata, pop, popIndices, mr := VarGridData()
+	cfg, ctmdata, pop, popIndices, mr := VarGridTestData()
 
 	emis := NewEmissions()
 	emis.Add(&EmisRecord{
@@ -360,7 +360,7 @@ func BenchmarkOutput(b *testing.B) {
 }
 
 func TestOutput(t *testing.T) {
-	cfg, ctmdata, pop, popIndices, mr := VarGridData()
+	cfg, ctmdata, pop, popIndices, mr := VarGridTestData()
 
 	emis := NewEmissions()
 	emis.Add(&EmisRecord{
@@ -524,7 +524,7 @@ func TestRegrid(t *testing.T) {
 }
 
 func TestCellIntersections(t *testing.T) {
-	cfg, ctmdata, pop, popIndices, mr := VarGridData()
+	cfg, ctmdata, pop, popIndices, mr := VarGridTestData()
 
 	emis := NewEmissions()
 
@@ -737,7 +737,7 @@ func (c *cellsFracSorter) Swap(i, j int) {
 }
 
 func TestFromAEP(t *testing.T) {
-	cfg, ctmdata, pop, popIndices, mr := VarGridData()
+	cfg, ctmdata, pop, popIndices, mr := VarGridTestData()
 
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
@@ -951,7 +951,7 @@ func TestFromAEP(t *testing.T) {
 }
 
 func BenchmarkFromAEP(b *testing.B) {
-	cfg, ctmdata, pop, popIndices, mr := VarGridData()
+	cfg, ctmdata, pop, popIndices, mr := VarGridTestData()
 
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{

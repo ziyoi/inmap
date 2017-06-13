@@ -32,7 +32,7 @@ func TestDynamicGrid(t *testing.T) {
 		gridMutateInterval = 3600. // interval between grid mutations in seconds.
 	)
 
-	cfg, ctmdata, pop, popIndices, mr := VarGridData()
+	cfg, ctmdata, pop, popIndices, mr := VarGridTestData()
 	emis := NewEmissions()
 	emis.Add(&EmisRecord{
 		SOx:  E,

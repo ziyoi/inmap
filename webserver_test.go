@@ -27,7 +27,7 @@ import (
 
 func TestVerticalProfile(t *testing.T) {
 
-	cfg, ctmdata, pop, popIndices, mr := VarGridData()
+	cfg, ctmdata, pop, popIndices, mr := VarGridTestData()
 	emis := NewEmissions()
 
 	mutator, err := PopulationMutator(cfg, popIndices)

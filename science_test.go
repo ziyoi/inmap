@@ -1,5 +1,5 @@
 /*
-Copyright © 2013 the InMAP authors.
+Copyright © 2017 the InMAP authors.
 This file is part of InMAP.
 
 InMAP is free software: you can redistribute it and/or modify
@@ -18,14 +18,12 @@ along with InMAP.  If not, see <http://www.gnu.org/licenses/>.
 
 package inmap
 
-import (
-	"bytes"
-	"testing"
-)
+import "testing"
 
-func TestSaveLoad(t *testing.T) {
-
-	buf := bytes.NewBuffer([]byte{})
+// Test whether convective mixing coefficients are balanced in
+// a way that conserves mass
+func TestConvectiveMixing(t *testing.T) {
+	const testTolerance = 1.e-8
 
 	cfg, ctmdata, pop, popIndices, mr := VarGridTestData()
 	emis := NewEmissions()
@@ -38,22 +36,16 @@ func TestSaveLoad(t *testing.T) {
 		InitFuncs: []DomainManipulator{
 			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis),
 			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, nil),
-			Save(buf),
 		},
 	}
 	if err := d.Init(); err != nil {
 		t.Error(err)
 	}
 
-	d2 := &InMAP{
-		InitFuncs: []DomainManipulator{
-			Load(buf, cfg, nil),
-		},
+	for _, c := range d.Cells() {
+		val := c.M2u - c.M2d + (*c.above)[0].M2d*(*c.above)[0].Dz/c.Dz
+		if absDifferent(val, 0, testTolerance) {
+			t.Error(c.Layer, val, c.M2u, c.M2d, (*c.above)[0].M2d)
+		}
 	}
-	if err := d2.Init(); err != nil {
-		t.Error(err)
-	}
-
-	d2.testCellAlignment1(t)
-	d2.testCellAlignment2(t)
 }
