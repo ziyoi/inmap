@@ -29,6 +29,9 @@ import (
 	"time"
 
 	"github.com/spatialmodel/inmap"
+	"github.com/spatialmodel/inmap/science/chem/simplechem"
+	"github.com/spatialmodel/inmap/science/drydep/simpledrydep"
+	"github.com/spatialmodel/inmap/science/wetdep/emepwetdep"
 )
 
 func getCTMData(cfg *ConfigData) (*inmap.CTMData, error) {
@@ -51,9 +54,9 @@ var DefaultScienceFuncs = []inmap.CellManipulator{
 	inmap.UpwindAdvection(),
 	inmap.Mixing(),
 	inmap.MeanderMixing(),
-	inmap.DryDeposition(),
-	inmap.WetDeposition(),
-	inmap.Chemistry(),
+	simpledrydep.DryDeposition(simplechem.SimpleDryDepIndices),
+	emepwetdep.WetDeposition(simplechem.EMEPWetDepIndices),
+	simplechem.Chemistry(),
 }
 
 // Run runs the model. dynamic and createGrid specify whether the variable

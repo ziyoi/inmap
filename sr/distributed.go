@@ -28,6 +28,9 @@ import (
 
 	"github.com/ctessum/geom"
 	"github.com/spatialmodel/inmap"
+	"github.com/spatialmodel/inmap/science/chem/simplechem"
+	"github.com/spatialmodel/inmap/science/drydep/simpledrydep"
+	"github.com/spatialmodel/inmap/science/wetdep/emepwetdep"
 )
 
 // Empty is used for passing content-less messages.
@@ -77,9 +80,9 @@ func (s *Worker) Calculate(input *IOData, output *IOData) error {
 		inmap.UpwindAdvection(),
 		inmap.Mixing(),
 		inmap.MeanderMixing(),
-		inmap.DryDeposition(),
-		inmap.WetDeposition(),
-		inmap.Chemistry(),
+		simpledrydep.DryDeposition(simplechem.SimpleDryDepIndices),
+		emepwetdep.WetDeposition(simplechem.EMEPWetDepIndices),
+		simplechem.Chemistry(),
 	)
 
 	emis := inmap.NewEmissions()

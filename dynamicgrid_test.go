@@ -16,14 +16,19 @@ You should have received a copy of the GNU General Public License
 along with InMAP.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package inmap
+package inmap_test
 
 import (
+	"math"
 	"reflect"
 	"testing"
 
 	"github.com/ctessum/geom"
 	"github.com/gonum/floats"
+	"github.com/spatialmodel/inmap"
+	"github.com/spatialmodel/inmap/science/chem/simplechem"
+	"github.com/spatialmodel/inmap/science/drydep/simpledrydep"
+	"github.com/spatialmodel/inmap/science/wetdep/emepwetdep"
 )
 
 func TestDynamicGrid(t *testing.T) {
@@ -32,9 +37,9 @@ func TestDynamicGrid(t *testing.T) {
 		gridMutateInterval = 3600. // interval between grid mutations in seconds.
 	)
 
-	cfg, ctmdata, pop, popIndices, mr := VarGridTestData()
-	emis := NewEmissions()
-	emis.Add(&EmisRecord{
+	cfg, ctmdata, pop, popIndices, mr := inmap.VarGridTestData()
+	emis := inmap.NewEmissions()
+	emis.Add(&inmap.EmisRecord{
 		SOx:  E,
 		NOx:  E,
 		PM25: E,
@@ -43,28 +48,28 @@ func TestDynamicGrid(t *testing.T) {
 		Geom: geom.Point{X: -3999, Y: -3999.},
 	}) // ground level emissions
 
-	popConcMutator := NewPopConcMutator(cfg, popIndices)
+	popConcMutator := inmap.NewPopConcMutator(cfg, popIndices)
 
-	d := &InMAP{
-		InitFuncs: []DomainManipulator{
+	d := &inmap.InMAP{
+		InitFuncs: []inmap.DomainManipulator{
 			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis),
-			SetTimestepCFL(),
+			inmap.SetTimestepCFL(),
 		},
-		RunFuncs: []DomainManipulator{
-			Calculations(AddEmissionsFlux()),
-			Calculations(
-				UpwindAdvection(),
-				Mixing(),
-				MeanderMixing(),
-				DryDeposition(),
-				WetDeposition(),
-				Chemistry(),
+		RunFuncs: []inmap.DomainManipulator{
+			inmap.Calculations(inmap.AddEmissionsFlux()),
+			inmap.Calculations(
+				inmap.UpwindAdvection(),
+				inmap.Mixing(),
+				inmap.MeanderMixing(),
+				simpledrydep.DryDeposition(simplechem.SimpleDryDepIndices),
+				emepwetdep.WetDeposition(simplechem.EMEPWetDepIndices),
+				simplechem.Chemistry(),
 			),
-			RunPeriodically(gridMutateInterval,
+			inmap.RunPeriodically(gridMutateInterval,
 				cfg.MutateGrid(popConcMutator.Mutate(),
 					ctmdata, pop, mr, emis, nil)),
-			RunPeriodically(gridMutateInterval, SetTimestepCFL()),
-			SteadyStateConvergenceCheck(-1, cfg.PopGridColumn, nil),
+			inmap.RunPeriodically(gridMutateInterval, inmap.SetTimestepCFL()),
+			inmap.SteadyStateConvergenceCheck(-1, cfg.PopGridColumn, nil),
 		},
 	}
 
@@ -75,8 +80,8 @@ func TestDynamicGrid(t *testing.T) {
 		t.Error(err)
 	}
 
-	cells := make([]int, d.nlayers)
-	for _, c := range *d.cells {
+	cells := make([]int, 10)
+	for _, c := range d.Cells() {
 		cells[c.Layer]++
 	}
 
@@ -85,7 +90,7 @@ func TestDynamicGrid(t *testing.T) {
 		t.Errorf("dynamic grid should have %v cells but instead has %v", wantCells, cells)
 	}
 
-	o, err := NewOutputter("", false, map[string]string{"TotalPopD": "coxHazard(loglogRR(TotalPM25), TotalPop, MortalityRate)"}, nil)
+	o, err := inmap.NewOutputter("", false, map[string]string{"TotalPopD": "coxHazard(loglogRR(TotalPM25), TotalPop, MortalityRate)"}, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -100,4 +105,11 @@ func TestDynamicGrid(t *testing.T) {
 	if different(totald, expectedDeaths, testTolerance) {
 		t.Errorf("Deaths (%v) doesn't equal %v", totald, expectedDeaths)
 	}
+}
+
+func different(a, b, tolerance float64) bool {
+	if 2*math.Abs(a-b)/math.Abs(a+b) > tolerance || math.IsNaN(a) || math.IsNaN(b) {
+		return true
+	}
+	return false
 }
