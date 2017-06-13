@@ -19,10 +19,10 @@ along with InMAP.  If not, see <http://www.gnu.org/licenses/>.
 package inmap
 
 import (
+	"math"
 	"testing"
 
 	"github.com/ctessum/geom"
-	"github.com/ctessum/geom/index/rtree"
 )
 
 // Test whether convective mixing coefficients are balanced in
@@ -39,8 +39,8 @@ func TestConvectiveMixing(t *testing.T) {
 	}
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis),
-			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, nil),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, AddEmisFlux),
+			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, AddEmisFlux, nil),
 		},
 	}
 	if err := d.Init(); err != nil {
@@ -63,9 +63,7 @@ func TestMixing(t *testing.T) {
 	)
 
 	cfg, ctmdata, pop, popIndices, mr := VarGridTestData()
-	emis := &Emissions{
-		data: rtree.NewTree(25, 50),
-	}
+	emis := NewEmissions()
 	emis.Add(&EmisRecord{
 		PM25: E,
 		Geom: geom.LineString{
@@ -80,8 +78,8 @@ func TestMixing(t *testing.T) {
 	}
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis),
-			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, nil),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, AddEmisFlux),
+			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, AddEmisFlux, nil),
 			SetTimestepCFL(),
 		},
 		RunFuncs: []DomainManipulator{
@@ -106,7 +104,7 @@ func TestMixing(t *testing.T) {
 			maxval = max(maxval, cell.Cf[iPM2_5])
 		}
 	}
-	cells := d.cells.array()
+	cells := d.Cells()
 	expectedMass := cells[0].EmisFlux[iPM2_5] * cells[0].Volume * d.Dt * numTimesteps
 	if different(sum, expectedMass, testTolerance) {
 		t.Errorf("sum=%g (it should equal %g)\n", sum, expectedMass)
@@ -121,9 +119,7 @@ func TestAdvection(t *testing.T) {
 	const tolerance = 1.e-8
 
 	cfg, ctmdata, pop, popIndices, mr := VarGridTestData()
-	emis := &Emissions{
-		data: rtree.NewTree(25, 50),
-	}
+	emis := NewEmissions()
 
 	mutator, err := PopulationMutator(cfg, popIndices)
 	if err != nil {
@@ -131,8 +127,8 @@ func TestAdvection(t *testing.T) {
 	}
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis),
-			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, nil),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, AddEmisFlux),
+			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, AddEmisFlux, nil),
 			SetTimestepCFL(),
 		},
 		RunFuncs: []DomainManipulator{
@@ -148,7 +144,7 @@ func TestAdvection(t *testing.T) {
 	var cellGroups = []*cellList{d.cells, d.westBoundary, d.eastBoundary,
 		d.northBoundary, d.southBoundary, d.topBoundary}
 
-	for _, testCell := range *d.cells {
+	for _, testCell := range d.Cells() {
 		ResetCells()(d)
 
 		// Add emissions
@@ -184,9 +180,7 @@ func TestMeanderMixing(t *testing.T) {
 	nsteps := 10
 
 	cfg, ctmdata, pop, popIndices, mr := VarGridTestData()
-	emis := &Emissions{
-		data: rtree.NewTree(25, 50),
-	}
+	emis := NewEmissions()
 
 	mutator, err := PopulationMutator(cfg, popIndices)
 	if err != nil {
@@ -194,8 +188,8 @@ func TestMeanderMixing(t *testing.T) {
 	}
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis),
-			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, nil),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, AddEmisFlux),
+			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, AddEmisFlux, nil),
 			SetTimestepCFL(),
 		},
 		RunFuncs: []DomainManipulator{
@@ -243,4 +237,11 @@ func TestMeanderMixing(t *testing.T) {
 			t.Errorf("cell %v emis: sum=%.12g (it should equal %v)\n", testCell, sum, E*float64(nsteps))
 		}
 	}
+}
+
+func absDifferent(a, b, tolerance float64) bool {
+	if math.Abs(a-b) > tolerance {
+		return true
+	}
+	return false
 }

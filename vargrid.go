@@ -331,7 +331,9 @@ func (config *VarGridConfig) webMapTrans() (proj.Transformer, error) {
 // RegularGrid returns a function that creates a new regular
 // (i.e., not variable resolution) grid
 // as specified by the information in c.
-func (config *VarGridConfig) RegularGrid(data *CTMData, pop *Population, popIndex PopIndices, mort *MortalityRates, emis *Emissions) DomainManipulator {
+// addEmisFlux is a chemistry mechanism-specific function for adding
+// emissions flux to a given cell.
+func (config *VarGridConfig) RegularGrid(data *CTMData, pop *Population, popIndex PopIndices, mort *MortalityRates, emis *Emissions, addEmisFlux func(c *Cell, name string, val float64) error) DomainManipulator {
 	return func(d *InMAP) error {
 
 		webMapTrans, err := config.webMapTrans()
@@ -362,7 +364,7 @@ func (config *VarGridConfig) RegularGrid(data *CTMData, pop *Population, popInde
 				}
 			}
 		}
-		err = d.addCells(config, indices, layers, nil, data, pop, mort, emis, webMapTrans)
+		err = d.addCells(config, indices, layers, nil, data, pop, mort, emis, webMapTrans, addEmisFlux)
 		if err != nil {
 			return err
 		}
@@ -391,8 +393,10 @@ func (d *InMAP) totalMassPopulation(popGridColumn string) (totalMass, totalPopul
 // by dividing cells as determined by divideRule. Cells where divideRule is
 // true are divided to the next nest level (up to the maximum nest level), and
 // cells where divideRule is false are combined (down to the baseline nest level).
+// addEmisFlux is a chemistry mechanism-specific function for adding
+// emissions flux to a given cell.
 // Log messages are written to logChan if it is not nil.
-func (config *VarGridConfig) MutateGrid(divideRule GridMutator, data *CTMData, pop *Population, mort *MortalityRates, emis *Emissions, logChan chan string) DomainManipulator {
+func (config *VarGridConfig) MutateGrid(divideRule GridMutator, data *CTMData, pop *Population, mort *MortalityRates, emis *Emissions, addEmisFlux func(c *Cell, name string, val float64) error, logChan chan string) DomainManipulator {
 	return func(d *InMAP) error {
 
 		if logChan != nil {
@@ -453,7 +457,7 @@ func (config *VarGridConfig) MutateGrid(divideRule GridMutator, data *CTMData, p
 
 			// Add new cells.
 			err = d.addCells(config, newCellIndices, newCellLayers, newCellConc,
-				data, pop, mort, emis, webMapTrans)
+				data, pop, mort, emis, webMapTrans, addEmisFlux)
 			if err != nil {
 				return err
 			}
@@ -471,7 +475,8 @@ func (config *VarGridConfig) MutateGrid(divideRule GridMutator, data *CTMData, p
 
 func (d *InMAP) addCells(config *VarGridConfig, newCellIndices [][][2]int,
 	newCellLayers []int, conc [][]float64, data *CTMData, pop *Population,
-	mort *MortalityRates, emis *Emissions, webMapTrans proj.Transformer) error {
+	mort *MortalityRates, emis *Emissions, webMapTrans proj.Transformer,
+	addEmisFlux func(c *Cell, name string, val float64) error) error {
 	type cellErr struct {
 		cell *Cell
 		err  error
@@ -504,20 +509,25 @@ func (d *InMAP) addCells(config *VarGridConfig, newCellIndices [][][2]int,
 	}
 	// Add emissions to new cells.
 	if emis != nil {
-		doneChan := make(chan int)
+		errChan := make(chan error)
 		for p := 0; p < nprocs; p++ {
 			go func(p int) {
 				for i := p; i < d.cells.len(); i += nprocs {
 					c := (*d.cells)[i]
 					if len(c.EmisFlux) == 0 {
-						c.setEmissionsFlux(emis) // This needs to be called after setNeighbors.
+						if err := c.setEmissionsFlux(emis, addEmisFlux); err != nil { // This needs to be called after setNeighbors.
+							errChan <- err
+							return
+						}
 					}
 				}
-				doneChan <- 0
+				errChan <- nil
 			}(p)
 		}
 		for p := 0; p < nprocs; p++ {
-			<-doneChan
+			if err := <-errChan; err != nil {
+				return err
+			}
 		}
 	}
 	return nil

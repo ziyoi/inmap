@@ -52,7 +52,7 @@ func TestDynamicGrid(t *testing.T) {
 
 	d := &inmap.InMAP{
 		InitFuncs: []inmap.DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, simplechem.AddEmisFlux),
 			inmap.SetTimestepCFL(),
 		},
 		RunFuncs: []inmap.DomainManipulator{
@@ -67,7 +67,7 @@ func TestDynamicGrid(t *testing.T) {
 			),
 			inmap.RunPeriodically(gridMutateInterval,
 				cfg.MutateGrid(popConcMutator.Mutate(),
-					ctmdata, pop, mr, emis, nil)),
+					ctmdata, pop, mr, emis, simplechem.AddEmisFlux, nil)),
 			inmap.RunPeriodically(gridMutateInterval, inmap.SetTimestepCFL()),
 			inmap.SteadyStateConvergenceCheck(-1, cfg.PopGridColumn, nil),
 		},

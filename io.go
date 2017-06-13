@@ -282,13 +282,6 @@ func FromAEP(r []aep.Record, sp *aep.SpatialProcessor, gi int, VOC, NOx, NH3, SO
 	return eRecs, nil
 }
 
-// addEmisFlux calculates emissions flux given emissions array in units of μg/s
-// and a scale for molecular mass conversion.
-func (c *Cell) addEmisFlux(val float64, scale float64, iPol int) {
-	fluxScale := 1. / c.Dx / c.Dy / c.Dz // μg/s /m/m/m = μg/m3/s
-	c.EmisFlux[iPol] += val * scale * fluxScale
-}
-
 // calcWeightFactor calculates the fraction of emissions in e that should be
 // allocated to the intersection between e and c based on the areas of lengths or areas.
 func calcWeightFactor(e geom.Geom, c *Cell) float64 {
@@ -343,8 +336,10 @@ func calcWeightFactor(e geom.Geom, c *Cell) float64 {
 	return weightFactor
 }
 
-// setEmissionsFlux sets the emissions flux for c based on the emissions in e.
-func (c *Cell) setEmissionsFlux(e *Emissions) {
+// setEmissionsFlux sets the emissions flux for c based on the emissions in e
+// and addFlux, which is a chemistry mechanism-specific function for adding
+// emissions flux to a given cell.
+func (c *Cell) setEmissionsFlux(e *Emissions, addFlux func(c *Cell, name string, val float64) error) error {
 	c.EmisFlux = make([]float64, len(PolNames))
 	for _, eTemp := range e.data.SearchIntersect(c.Bounds()) {
 		e := eTemp.(*EmisRecord)
@@ -365,13 +360,23 @@ func (c *Cell) setEmissionsFlux(e *Emissions) {
 			continue
 		}
 
-		// Emissions: all except PM2.5 go to gas phase
-		c.addEmisFlux(e.VOC, 1.*weightFactor, igOrg)
-		c.addEmisFlux(e.NOx, NOxToN*weightFactor, igNO)
-		c.addEmisFlux(e.NH3, NH3ToN*weightFactor, igNH)
-		c.addEmisFlux(e.SOx, SOxToS*weightFactor, igS)
-		c.addEmisFlux(e.PM25, 1.*weightFactor, iPM2_5)
+		if err := addFlux(c, "VOC", e.VOC*weightFactor); err != nil {
+			return err
+		}
+		if err := addFlux(c, "NOx", e.NOx*weightFactor); err != nil {
+			return err
+		}
+		if err := addFlux(c, "NH3", e.NH3*weightFactor); err != nil {
+			return err
+		}
+		if err := addFlux(c, "SOx", e.SOx*weightFactor); err != nil {
+			return err
+		}
+		if err := addFlux(c, "PM2_5", e.PM25*weightFactor); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 // Outputter is a holder for output parameters.

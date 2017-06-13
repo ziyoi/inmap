@@ -36,8 +36,8 @@ func TestVerticalProfile(t *testing.T) {
 	}
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis),
-			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, nil),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, AddEmisFlux),
+			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, AddEmisFlux, nil),
 		},
 	}
 	if err = d.Init(); err != nil {

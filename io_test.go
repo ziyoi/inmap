@@ -38,6 +38,7 @@ import (
 const (
 	TestEmisFilename   = "testEmis.shp"
 	TestOutputFilename = "testOutput.shp"
+	E                  = 1000000.0 // emissions
 )
 
 func WriteTestEmis() error {
@@ -154,7 +155,7 @@ func TestEmissions(t *testing.T) {
 
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, AddEmisFlux),
 		},
 	}
 	if err := d.Init(); err != nil {
@@ -231,7 +232,7 @@ func TestOutputEquation(t *testing.T) {
 
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, AddEmisFlux),
 		},
 		CleanupFuncs: []DomainManipulator{
 			o.Output(),
@@ -340,7 +341,7 @@ func BenchmarkOutput(b *testing.B) {
 
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, AddEmisFlux),
 			o.CheckOutputVars(),
 		},
 		CleanupFuncs: []DomainManipulator{
@@ -386,7 +387,7 @@ func TestOutput(t *testing.T) {
 
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, AddEmisFlux),
 			o.CheckOutputVars(),
 		},
 		CleanupFuncs: []DomainManipulator{
@@ -534,8 +535,8 @@ func TestCellIntersections(t *testing.T) {
 	}
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis),
-			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, nil),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, AddEmisFlux),
+			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, AddEmisFlux, nil),
 		},
 	}
 	if err := d.Init(); err != nil {
@@ -741,7 +742,7 @@ func TestFromAEP(t *testing.T) {
 
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, nil),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, nil, AddEmisFlux),
 		},
 	}
 	if err := d.Init(); err != nil {
@@ -955,7 +956,7 @@ func BenchmarkFromAEP(b *testing.B) {
 
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, nil),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, nil, AddEmisFlux),
 		},
 	}
 	if err := d.Init(); err != nil {

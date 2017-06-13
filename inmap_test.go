@@ -61,7 +61,7 @@ func TestConverge(t *testing.T) {
 
 		d := &inmap.InMAP{
 			InitFuncs: []inmap.DomainManipulator{
-				cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis),
+				cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, simplechem.AddEmisFlux),
 				inmap.SetTimestepCFL(),
 			},
 			RunFuncs: []inmap.DomainManipulator{
@@ -132,8 +132,8 @@ func BenchmarkRun(b *testing.B) {
 	}
 	d := &inmap.InMAP{
 		InitFuncs: []inmap.DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis),
-			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, nil),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, simplechem.AddEmisFlux),
+			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, simplechem.AddEmisFlux, nil),
 			inmap.SetTimestepCFL(),
 		},
 		RunFuncs: []inmap.DomainManipulator{
@@ -193,7 +193,7 @@ func TestBigM2d(t *testing.T) {
 
 	d := &inmap.InMAP{
 		InitFuncs: []inmap.DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, simplechem.AddEmisFlux),
 			inmap.SetTimestepCFL(),
 		},
 		RunFuncs: []inmap.DomainManipulator{
@@ -230,4 +230,25 @@ func TestBigM2d(t *testing.T) {
 	if math.IsNaN(sum) {
 		t.Errorf("concentration sum is NaN")
 	}
+}
+
+// Tests whether the cells correctly reference each other
+func TestCellAlignment(t *testing.T) {
+	cfg, ctmdata, pop, popIndices, mr := inmap.VarGridTestData()
+	emis := inmap.NewEmissions()
+	mutator, err := inmap.PopulationMutator(cfg, popIndices)
+	if err != nil {
+		t.Error(err)
+	}
+
+	d := &inmap.InMAP{
+		InitFuncs: []inmap.DomainManipulator{
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, simplechem.AddEmisFlux),
+			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, simplechem.AddEmisFlux, nil),
+		},
+	}
+	if err := d.Init(); err != nil {
+		t.Error(err)
+	}
+	d.TestCellAlignment2(t)
 }

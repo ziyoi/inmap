@@ -35,9 +35,6 @@ import (
 
 const daysPerSecond = 1. / 3600. / 24.
 
-// EmisNames are the names of pollutants accepted as emissions [μg/s]
-var EmisNames = []string{"VOC", "NOx", "NH3", "SOx", "PM2_5"}
-
 var emisLabels = map[string]int{"VOCEmissions": igOrg,
 	"NOxEmissions":  igNO,
 	"NH3Emissions":  igNH,

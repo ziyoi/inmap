@@ -19,6 +19,8 @@ along with InMAP.  If not, see <http://www.gnu.org/licenses/>.
 package inmap
 
 import (
+	"fmt"
+	"math"
 	"os"
 	"reflect"
 	"testing"
@@ -27,8 +29,35 @@ import (
 	"github.com/ctessum/geom/index/rtree"
 )
 
-func TestVarGridCreate(t *testing.T) {
+// emisConv lists the accepted names for emissions species, the array
+// indices they correspond to, and the
+// factors needed to convert [μg/s] of emitted species to [μg/s] of
+// model species.
+var emisConv = map[string]struct {
+	i    int
+	conv float64
+}{
+	"VOC":   {i: igOrg, conv: 1},
+	"NOx":   {i: igNO, conv: NOxToN},
+	"NH3":   {i: igNH, conv: NH3ToN},
+	"SOx":   {i: igS, conv: SOxToS},
+	"PM2_5": {i: iPM2_5, conv: 1},
+}
 
+// AddEmisFlux adds emissions flux to Cell c based on the given
+// pollutant name and amount in units of μg/s. The units of
+// the resulting flux are μg/m3/s.
+func AddEmisFlux(c *Cell, name string, val float64) error {
+	fluxScale := 1. / c.Dx / c.Dy / c.Dz // μg/s /m/m/m = μg/m3/s
+	x, ok := emisConv[name]
+	if !ok {
+		return fmt.Errorf("simplechem: '%s' is not a valid emissions species; valid options are VOC, NOx, NH3, SOx, and PM2_5", name)
+	}
+	c.EmisFlux[x.i] += val * fluxScale
+	return nil
+}
+
+func TestVarGridCreate(t *testing.T) {
 	cfg, ctmdata, pop, popIndices, mr := VarGridTestData()
 	emis := &Emissions{
 		data: rtree.NewTree(25, 50),
@@ -40,17 +69,17 @@ func TestVarGridCreate(t *testing.T) {
 	}
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis),
-			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, nil),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, AddEmisFlux),
+			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, AddEmisFlux, nil),
 		},
 	}
 	if err := d.Init(); err != nil {
 		t.Error(err)
 	}
-	d.testCellAlignment1(t)
+	d.TestCellAlignment1(t)
 }
 
-func (d *InMAP) testCellAlignment1(t *testing.T) {
+func (d *InMAP) TestCellAlignment1(t *testing.T) {
 	cells := d.cells.array()
 
 	// Cell 0
@@ -525,6 +554,190 @@ func (d *InMAP) testCellAlignment1(t *testing.T) {
 	}
 }
 
+func (d *InMAP) TestCellAlignment2(t *testing.T) {
+	const testTolerance = 1.e-8
+	for _, cell := range *d.cells {
+		var westCoverage, eastCoverage, northCoverage, southCoverage float64
+		var aboveCoverage, belowCoverage, groundLevelCoverage float64
+		for _, w := range *cell.west {
+			westCoverage += w.info.coverFrac
+			if !w.boundary {
+				pass := false
+				for _, e := range *w.east {
+					if e.Cell == cell.Cell {
+						pass = true
+						if different(w.info.diff, e.info.diff, testTolerance) {
+							t.Errorf("Kxx doesn't match")
+						}
+						if different(w.info.centerDistance, e.info.centerDistance, testTolerance) {
+							t.Errorf("Dx doesn't match")
+							break
+						}
+					}
+				}
+				if !pass {
+					t.Errorf("Failed for Cell %v West", cell)
+				}
+			}
+		}
+		for _, e := range *cell.east {
+			eastCoverage += e.info.coverFrac
+			if !e.boundary {
+				pass := false
+				for _, w := range *e.west {
+					if w.Cell == cell.Cell {
+						pass = true
+						if different(e.info.diff, w.info.diff, testTolerance) {
+							t.Errorf("Kxx doesn't match")
+						}
+						if different(e.info.centerDistance, w.info.centerDistance, testTolerance) {
+							t.Errorf("Dx doesn't match")
+						}
+						break
+					}
+				}
+				if !pass {
+					t.Errorf("Failed for Cell %v East", cell)
+				}
+			}
+		}
+		for _, n := range *cell.north {
+			northCoverage += n.info.coverFrac
+			if !n.boundary {
+				pass := false
+				for _, s := range *n.south {
+					if s.Cell == cell.Cell {
+						pass = true
+						if different(n.info.diff, s.info.diff, testTolerance) {
+							t.Errorf("Kyy doesn't match")
+						}
+						if different(n.info.centerDistance, s.info.centerDistance, testTolerance) {
+							t.Errorf("Dy doesn't match")
+						}
+						break
+					}
+				}
+				if !pass {
+					t.Errorf("Failed for Cell %v  North", cell)
+				}
+			}
+		}
+		for _, s := range *cell.south {
+			southCoverage += s.info.coverFrac
+			if !s.boundary {
+				pass := false
+				for _, n := range *s.north {
+					if n.Cell == cell.Cell {
+						pass = true
+						if different(s.info.diff, n.info.diff, testTolerance) {
+							t.Errorf("Kyy doesn't match")
+						}
+						if different(s.info.centerDistance, n.info.centerDistance, testTolerance) {
+							t.Errorf("Dy doesn't match")
+						}
+						break
+					}
+				}
+				if !pass {
+					t.Errorf("Failed for Cell %v South", cell)
+				}
+			}
+		}
+		for _, a := range *cell.above {
+			aboveCoverage += a.info.coverFrac
+			if !a.boundary {
+				pass := false
+				for _, b := range *a.below {
+					if b.Cell == cell.Cell {
+						pass = true
+						if different(a.info.diff, b.info.diff, testTolerance) {
+							t.Errorf("Kzz doesn't match above (layer=%v, "+
+								"KzzAbove=%v, KzzBelow=%v)", cell.Layer,
+								b.info.diff, a.info.diff)
+						}
+						if different(a.info.centerDistance, b.info.centerDistance, testTolerance) {
+							t.Errorf("Dz doesn't match")
+						}
+						break
+					}
+				}
+				if !pass {
+					t.Errorf("Failed for Cell %v Above", cell)
+				}
+			}
+		}
+		for _, b := range *cell.below {
+			belowCoverage += b.info.coverFrac
+			pass := false
+			if cell.Layer == 0 && b.Cell == cell.Cell {
+				pass = true
+			} else {
+				for _, a := range *b.above {
+					if a.Cell == cell.Cell {
+						pass = true
+						if different(b.info.diff, a.info.diff, testTolerance) {
+							t.Errorf("Kzz doesn't match below")
+						}
+						if different(b.info.centerDistance, a.info.centerDistance, testTolerance) {
+							t.Errorf("Dz doesn't match")
+						}
+						break
+					}
+				}
+			}
+			if !pass {
+				t.Errorf("Failed for Cell %v  Below", cell)
+			}
+		}
+		// Assume upper cells are never higher resolution than lower cells
+		for _, g := range *cell.groundLevel {
+			groundLevelCoverage += g.info.coverFrac
+			g2 := g
+			pass := false
+			for {
+				if g2.above.len() == 0 {
+					pass = false
+					break
+				}
+				if g2.Cell == (*g2.above)[0].Cell {
+					pass = false
+					break
+				}
+				if g2.Cell == cell.Cell {
+					pass = true
+					break
+				}
+				g2 = (*g2.above)[0]
+			}
+			if !pass {
+				t.Errorf("Failed for Cell %v GroundLevel", cell)
+			}
+		}
+		const tolerance = 1.0e-10
+		if different(westCoverage, 1, tolerance) {
+			t.Errorf("cell %v, west coverage %g!=1", cell, westCoverage)
+		}
+		if different(eastCoverage, 1, tolerance) {
+			t.Errorf("cell %v, east coverage %g!=1", cell, eastCoverage)
+		}
+		if different(southCoverage, 1, tolerance) {
+			t.Errorf("cell %v, south coverage %g!=1", cell, southCoverage)
+		}
+		if different(northCoverage, 1, tolerance) {
+			t.Errorf("cell %v, north coverage %g!=1", cell, northCoverage)
+		}
+		if different(belowCoverage, 1, tolerance) {
+			t.Errorf("cell %v, below coverage %g!=1", cell, belowCoverage)
+		}
+		if different(aboveCoverage, 1, tolerance) {
+			t.Errorf("cell %v, above coverage %g!=1", cell, aboveCoverage)
+		}
+		if different(groundLevelCoverage, 1, tolerance) {
+			t.Errorf("cell %v, groundLevel coverage %g!=1", cell, groundLevelCoverage)
+		}
+	}
+}
+
 func TestGetGeometry(t *testing.T) {
 	cfg, ctmdata, pop, popIndices, mr := VarGridTestData()
 	emis := &Emissions{
@@ -537,8 +750,8 @@ func TestGetGeometry(t *testing.T) {
 	}
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis),
-			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, nil),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, AddEmisFlux),
+			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, AddEmisFlux, nil),
 		},
 	}
 	if err := d.Init(); err != nil {
@@ -683,4 +896,11 @@ func TestReadWriteCTMData(t *testing.T) {
 	compareCTMData(ctmdata, ctmdata2, tolerance, t)
 	f.Close()
 	os.Remove(TestCTMDataFile)
+}
+
+func different(a, b, tolerance float64) bool {
+	if 2*math.Abs(a-b)/math.Abs(a+b) > tolerance || math.IsNaN(a) || math.IsNaN(b) {
+		return true
+	}
+	return false
 }
