@@ -27,6 +27,7 @@ import (
 
 	"bitbucket.org/ctessum/cdf"
 	"github.com/spatialmodel/inmap"
+	"github.com/spatialmodel/inmap/science/chem/simplechem"
 	"golang.org/x/net/context"
 )
 
@@ -54,7 +55,7 @@ func NewSR(varGridFile, inmapDataFile, command, logDir string, config *inmap.Var
 	sr := &SR{
 		d: &inmap.InMAP{
 			InitFuncs: []inmap.DomainManipulator{
-				inmap.Load(r, config, nil),
+				inmap.Load(r, config, nil, simplechem.AddEmisFlux),
 			},
 		},
 		c:        NewCluster(command, logDir, "Worker.Exit", RPCPort),

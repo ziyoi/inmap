@@ -50,8 +50,8 @@ func TestChemistry(t *testing.T) {
 	}
 	d := &inmap.InMAP{
 		InitFuncs: []inmap.DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis),
-			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, nil),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, AddEmisFlux),
+			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, AddEmisFlux, nil),
 			inmap.SetTimestepCFL(),
 		},
 		RunFuncs: []inmap.DomainManipulator{

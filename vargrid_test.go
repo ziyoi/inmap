@@ -49,11 +49,11 @@ var emisConv = map[string]struct {
 // the resulting flux are μg/m3/s.
 func AddEmisFlux(c *Cell, name string, val float64) error {
 	fluxScale := 1. / c.Dx / c.Dy / c.Dz // μg/s /m/m/m = μg/m3/s
-	x, ok := emisConv[name]
+	conv, ok := emisConv[name]
 	if !ok {
 		return fmt.Errorf("simplechem: '%s' is not a valid emissions species; valid options are VOC, NOx, NH3, SOx, and PM2_5", name)
 	}
-	c.EmisFlux[x.i] += val * fluxScale
+	c.EmisFlux[conv.i] += val * conv.conv * fluxScale
 	return nil
 }
 

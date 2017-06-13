@@ -61,8 +61,8 @@ func Grid(cfg *ConfigData) error {
 	}
 	d := &inmap.InMAP{
 		InitFuncs: []inmap.DomainManipulator{
-			cfg.VarGrid.RegularGrid(ctmData, pop, popIndices, mr, nil),
-			cfg.VarGrid.MutateGrid(mutator, ctmData, pop, mr, nil, msgLog),
+			cfg.VarGrid.RegularGrid(ctmData, pop, popIndices, mr, nil, nil),
+			cfg.VarGrid.MutateGrid(mutator, ctmData, pop, mr, nil, nil, msgLog),
 			inmap.Save(w),
 		},
 	}

@@ -28,6 +28,7 @@ import (
 	"github.com/ctessum/geom/encoding/shp"
 	"github.com/kardianos/osext"
 	"github.com/spatialmodel/inmap"
+	"github.com/spatialmodel/inmap/science/chem/simplechem"
 	"github.com/spatialmodel/inmap/sr"
 )
 
@@ -65,7 +66,7 @@ func NewWorker(cfg *ConfigData) (*sr.Worker, error) {
 	}
 	d := &inmap.InMAP{
 		InitFuncs: []inmap.DomainManipulator{
-			inmap.Load(r, &cfg.VarGrid, nil),
+			inmap.Load(r, &cfg.VarGrid, nil, simplechem.AddEmisFlux),
 		},
 	}
 	if err = d.Init(); err != nil {

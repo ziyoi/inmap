@@ -135,8 +135,8 @@ func Run(cfg *ConfigData, dynamic, createGrid bool, scienceFuncs []inmap.CellMan
 				return err
 			}
 			initFuncs = []inmap.DomainManipulator{
-				cfg.VarGrid.RegularGrid(ctmData, pop, popIndices, mr, emis),
-				cfg.VarGrid.MutateGrid(mutator, ctmData, pop, mr, emis, msgLog),
+				cfg.VarGrid.RegularGrid(ctmData, pop, popIndices, mr, emis, simplechem.AddEmisFlux),
+				cfg.VarGrid.MutateGrid(mutator, ctmData, pop, mr, emis, simplechem.AddEmisFlux, msgLog),
 				inmap.SetTimestepCFL(),
 			}
 		} else { // pre-created static grid
@@ -146,7 +146,7 @@ func Run(cfg *ConfigData, dynamic, createGrid bool, scienceFuncs []inmap.CellMan
 				return fmt.Errorf("problem opening file to load VariableGridData: %v", err)
 			}
 			initFuncs = []inmap.DomainManipulator{
-				inmap.Load(r, &cfg.VarGrid, emis),
+				inmap.Load(r, &cfg.VarGrid, emis, simplechem.AddEmisFlux),
 				inmap.SetTimestepCFL(),
 				o.CheckOutputVars(),
 			}
@@ -160,7 +160,7 @@ func Run(cfg *ConfigData, dynamic, createGrid bool, scienceFuncs []inmap.CellMan
 		}
 	} else { // dynamic grid
 		initFuncs = []inmap.DomainManipulator{
-			cfg.VarGrid.RegularGrid(ctmData, pop, popIndices, mr, emis),
+			cfg.VarGrid.RegularGrid(ctmData, pop, popIndices, mr, emis, simplechem.AddEmisFlux),
 			inmap.SetTimestepCFL(),
 			o.CheckOutputVars(),
 		}
@@ -172,7 +172,7 @@ func Run(cfg *ConfigData, dynamic, createGrid bool, scienceFuncs []inmap.CellMan
 			scienceCalcs,
 			inmap.RunPeriodically(gridMutateInterval,
 				cfg.VarGrid.MutateGrid(popConcMutator.Mutate(),
-					ctmData, pop, mr, emis, msgLog)),
+					ctmData, pop, mr, emis, simplechem.AddEmisFlux, msgLog)),
 			inmap.RunPeriodically(gridMutateInterval, inmap.SetTimestepCFL()),
 			inmap.SteadyStateConvergenceCheck(cfg.NumIterations,
 				cfg.VarGrid.PopGridColumn, cConverge),

@@ -91,7 +91,7 @@ func (s *Worker) Calculate(input *IOData, output *IOData) error {
 	}
 
 	initFuncs := []inmap.DomainManipulator{
-		s.Config.RegularGrid(s.CTMData, s.Pop, s.PopIndices, s.MR, emis),
+		s.Config.RegularGrid(s.CTMData, s.Pop, s.PopIndices, s.MR, emis, simplechem.AddEmisFlux),
 		inmap.SetTimestepCFL(),
 	}
 	popConcMutator := inmap.NewPopConcMutator(s.Config, s.PopIndices)
@@ -101,7 +101,7 @@ func (s *Worker) Calculate(input *IOData, output *IOData) error {
 		scienceFuncs,
 		inmap.RunPeriodically(gridMutateInterval,
 			s.Config.MutateGrid(popConcMutator.Mutate(),
-				s.CTMData, s.Pop, s.MR, emis, nil)),
+				s.CTMData, s.Pop, s.MR, emis, simplechem.AddEmisFlux, nil)),
 		inmap.RunPeriodically(gridMutateInterval, inmap.SetTimestepCFL()),
 		inmap.SteadyStateConvergenceCheck(-1, s.Config.PopGridColumn, nil),
 	}

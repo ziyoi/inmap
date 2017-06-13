@@ -19,6 +19,7 @@ along with InMAP.  If not, see <http://www.gnu.org/licenses/>.
 package emepwetdep
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/spatialmodel/inmap"
@@ -26,6 +27,68 @@ import (
 
 func indices() (SO2, OtherGas, PM25) {
 	return SO2{5}, OtherGas{3, 7, 0}, PM25{1, 2, 4, 6, 8}
+}
+
+// physical constants
+const (
+	// Molar masses [grams per mole]
+	mwNOx = 46.0055
+	mwN   = 14.0067 // g/mol, molar mass of nitrogen
+	mwNO3 = 62.00501
+	mwNH3 = 17.03056
+	mwNH4 = 18.03851
+	mwS   = 32.0655 // g/mol, molar mass of sulfur
+	mwSO2 = 64.0644
+	mwSO4 = 96.0632
+
+	// Chemical mass conversions [ratios]
+	NOxToN = mwN / mwNOx
+	NtoNO3 = mwNO3 / mwN
+	SOxToS = mwSO2 / mwS
+	StoSO4 = mwS / mwSO4
+	NH3ToN = mwN / mwNH3
+	NtoNH4 = mwNH4 / mwN
+)
+
+// Indicies of individual pollutants in arrays.
+const (
+	igOrg int = iota
+	ipOrg
+	iPM2_5
+	igNH
+	ipNH
+	igS
+	ipS
+	igNO
+	ipNO
+)
+
+// emisConv lists the accepted names for emissions species, the array
+// indices they correspond to, and the
+// factors needed to convert [μg/s] of emitted species to [μg/s] of
+// model species.
+var emisConv = map[string]struct {
+	i    int
+	conv float64
+}{
+	"VOC":   {i: igOrg, conv: 1},
+	"NOx":   {i: igNO, conv: NOxToN},
+	"NH3":   {i: igNH, conv: NH3ToN},
+	"SOx":   {i: igS, conv: SOxToS},
+	"PM2_5": {i: iPM2_5, conv: 1},
+}
+
+// AddEmisFlux adds emissions flux to Cell c based on the given
+// pollutant name and amount in units of μg/s. The units of
+// the resulting flux are μg/m3/s.
+func AddEmisFlux(c *inmap.Cell, name string, val float64) error {
+	fluxScale := 1. / c.Dx / c.Dy / c.Dz // μg/s /m/m/m = μg/m3/s
+	conv, ok := emisConv[name]
+	if !ok {
+		return fmt.Errorf("simplechem: '%s' is not a valid emissions species; valid options are VOC, NOx, NH3, SOx, and PM2_5", name)
+	}
+	c.EmisFlux[conv.i] += val * conv.conv * fluxScale
+	return nil
 }
 
 func TestWetDeposition(t *testing.T) {
@@ -38,8 +101,8 @@ func TestWetDeposition(t *testing.T) {
 	}
 	d := &inmap.InMAP{
 		InitFuncs: []inmap.DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis),
-			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, nil),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, AddEmisFlux),
+			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, AddEmisFlux, nil),
 			inmap.SetTimestepCFL(),
 		},
 		RunFuncs: []inmap.DomainManipulator{

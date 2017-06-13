@@ -115,10 +115,10 @@ func (d *InMAP) initFromCells(cells []*Cell, emis *Emissions, config *VarGridCon
 				}
 				errChan <- nil
 			}(p)
-			for p := 0; p < nprocs; p++ {
-				if err := <-errChan; err != nil {
-					return err
-				}
+		}
+		for p := 0; p < nprocs; p++ {
+			if err := <-errChan; err != nil {
+				return err
 			}
 		}
 	}

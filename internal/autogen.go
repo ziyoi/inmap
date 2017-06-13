@@ -30,6 +30,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/spatialmodel/inmap"
 	"github.com/spatialmodel/inmap/internal/cmd"
+	"github.com/spatialmodel/inmap/science/chem/simplechem"
 	"github.com/spf13/cobra/doc"
 )
 
@@ -88,7 +89,7 @@ func writeOutputOptions() {
 
 	d := &inmap.InMAP{
 		InitFuncs: []inmap.DomainManipulator{
-			inmap.Load(r, &cfg.VarGrid, inmap.NewEmissions()),
+			inmap.Load(r, &cfg.VarGrid, inmap.NewEmissions(), simplechem.AddEmisFlux),
 		},
 	}
 	if err = d.Init(); err != nil {
