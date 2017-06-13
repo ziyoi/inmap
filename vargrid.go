@@ -46,12 +46,12 @@ type VarGridConfig struct {
 	Ynests         []int   // Nesting multiples in the Y direction
 	HiResLayers    int     // number of layers to do in high resolution (layers above this will be lowest resolution.
 
-	CTMGridXo float64 // lower left of Chemical Transport Model (CTM) grid, x
-	CTMGridYo float64 // lower left of grid, y
-	CTMGridDx float64 // m
-	CTMGridDy float64 // m
-	CTMGridNx int
-	CTMGridNy int
+	ctmGridXo float64 // lower left of Chemical Transport Model (CTM) grid, x
+	ctmGridYo float64 // lower left of grid, y
+	ctmGridDx float64 // m
+	ctmGridDy float64 // m
+	ctmGridNx int
+	ctmGridNy int
 
 	PopDensityThreshold float64 // limit for people per unit area in the grid cell
 	PopThreshold        float64 // limit for total number of people in the grid cell
@@ -117,12 +117,12 @@ func (config *VarGridConfig) LoadCTMData(rw cdf.ReaderWriterAt) (*CTMData, error
 	nz := f.Header.Lengths("UAvg")[0]
 
 	// Get CTM grid attributes
-	config.CTMGridDx = f.Header.GetAttribute("", "dx").([]float64)[0]
-	config.CTMGridDy = f.Header.GetAttribute("", "dy").([]float64)[0]
-	config.CTMGridNx = int(f.Header.GetAttribute("", "nx").([]int32)[0])
-	config.CTMGridNy = int(f.Header.GetAttribute("", "ny").([]int32)[0])
-	config.CTMGridXo = f.Header.GetAttribute("", "x0").([]float64)[0]
-	config.CTMGridYo = f.Header.GetAttribute("", "y0").([]float64)[0]
+	config.ctmGridDx = f.Header.GetAttribute("", "dx").([]float64)[0]
+	config.ctmGridDy = f.Header.GetAttribute("", "dy").([]float64)[0]
+	config.ctmGridNx = int(f.Header.GetAttribute("", "nx").([]int32)[0])
+	config.ctmGridNy = int(f.Header.GetAttribute("", "ny").([]int32)[0])
+	config.ctmGridXo = f.Header.GetAttribute("", "x0").([]float64)[0]
+	config.ctmGridYo = f.Header.GetAttribute("", "y0").([]float64)[0]
 
 	dataVersion := f.Header.GetAttribute("", "data_version").(string)
 
@@ -964,13 +964,13 @@ func (c *Cell) loadData(data *CTMData, k int) error {
 func (config *VarGridConfig) makeCTMgrid(nlayers int) *rtree.Rtree {
 	tree := rtree.NewTree(25, 50)
 	for k := 0; k < nlayers; k++ {
-		for ix := 0; ix < config.CTMGridNx; ix++ {
-			for iy := 0; iy < config.CTMGridNy; iy++ {
+		for ix := 0; ix < config.ctmGridNx; ix++ {
+			for iy := 0; iy < config.ctmGridNy; iy++ {
 				cell := new(gridCellLight)
-				x0 := config.CTMGridXo + config.CTMGridDx*float64(ix)
-				x1 := config.CTMGridXo + config.CTMGridDx*float64(ix+1)
-				y0 := config.CTMGridYo + config.CTMGridDy*float64(iy)
-				y1 := config.CTMGridYo + config.CTMGridDy*float64(iy+1)
+				x0 := config.ctmGridXo + config.ctmGridDx*float64(ix)
+				x1 := config.ctmGridXo + config.ctmGridDx*float64(ix+1)
+				y0 := config.ctmGridYo + config.ctmGridDy*float64(iy)
+				y1 := config.ctmGridYo + config.ctmGridDy*float64(iy+1)
 				cell.Polygonal = geom.Polygon{[]geom.Point{
 					{X: x0, Y: y0},
 					{X: x1, Y: y0},
