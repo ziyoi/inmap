@@ -24,8 +24,10 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"bitbucket.org/ctessum/aqhealth"
@@ -336,10 +338,8 @@ func calcWeightFactor(e geom.Geom, c *Cell) float64 {
 	return weightFactor
 }
 
-// setEmissionsFlux sets the emissions flux for c based on the emissions in e
-// and addFlux, which is a chemistry mechanism-specific function for adding
-// emissions flux to a given cell.
-func (c *Cell) setEmissionsFlux(e *Emissions, addFlux func(c *Cell, name string, val float64) error) error {
+// setEmissionsFlux sets the emissions flux for c based on the emissions in e.
+func (c *Cell) setEmissionsFlux(e *Emissions, m Mechanism) error {
 	c.EmisFlux = make([]float64, len(PolNames))
 	for _, eTemp := range e.data.SearchIntersect(c.Bounds()) {
 		e := eTemp.(*EmisRecord)
@@ -360,19 +360,19 @@ func (c *Cell) setEmissionsFlux(e *Emissions, addFlux func(c *Cell, name string,
 			continue
 		}
 
-		if err := addFlux(c, "VOC", e.VOC*weightFactor); err != nil {
+		if err := m.AddEmisFlux(c, "VOC", e.VOC*weightFactor); err != nil {
 			return err
 		}
-		if err := addFlux(c, "NOx", e.NOx*weightFactor); err != nil {
+		if err := m.AddEmisFlux(c, "NOx", e.NOx*weightFactor); err != nil {
 			return err
 		}
-		if err := addFlux(c, "NH3", e.NH3*weightFactor); err != nil {
+		if err := m.AddEmisFlux(c, "NH3", e.NH3*weightFactor); err != nil {
 			return err
 		}
-		if err := addFlux(c, "SOx", e.SOx*weightFactor); err != nil {
+		if err := m.AddEmisFlux(c, "SOx", e.SOx*weightFactor); err != nil {
 			return err
 		}
-		if err := addFlux(c, "PM2_5", e.PM25*weightFactor); err != nil {
+		if err := m.AddEmisFlux(c, "PM2_5", e.PM25*weightFactor); err != nil {
 			return err
 		}
 	}
@@ -401,6 +401,7 @@ type Outputter struct {
 	outputVariables map[string]string
 	modelVariables  []string
 	outputFunctions map[string]govaluate.ExpressionFunction
+	m               Mechanism
 }
 
 // NewOutputter initializes a new Outputter holder and adds a set of default
@@ -417,7 +418,7 @@ type Outputter struct {
 // population, and the baseline mortality rate (deaths per 100,000 people per year).
 //
 // 'sum(x)' which sums a variable across all grid cells.
-func NewOutputter(fileName string, allLayers bool, outputVariables map[string]string, outputFunctions map[string]govaluate.ExpressionFunction) (*Outputter, error) {
+func NewOutputter(fileName string, allLayers bool, outputVariables map[string]string, outputFunctions map[string]govaluate.ExpressionFunction, m Mechanism) (*Outputter, error) {
 	defaultOutputFuncs := map[string]govaluate.ExpressionFunction{
 		"exp": func(arg ...interface{}) (interface{}, error) {
 			if len(arg) != 1 {
@@ -454,6 +455,7 @@ func NewOutputter(fileName string, allLayers bool, outputVariables map[string]st
 		allLayers:       allLayers,
 		outputVariables: outputVariables,
 		outputFunctions: defaultOutputFuncs,
+		m:               m,
 	}
 
 	for _, val := range o.outputVariables {
@@ -589,8 +591,8 @@ func (o *Outputter) checkForDerivatives() error {
 
 // CheckModelVars checks whether the unique input variables required to calculate
 // the user-requested output variables are available in the model.
-func (d *InMAP) checkModelVars(g ...string) error {
-	outputOps, _, _ := d.OutputOptions()
+func (d *InMAP) checkModelVars(m Mechanism, g ...string) error {
+	outputOps, _, _ := d.OutputOptions(m)
 	mapOutputOps := make(map[string]uint8)
 	for _, n := range outputOps {
 		mapOutputOps[n] = 0
@@ -607,7 +609,7 @@ func (d *InMAP) checkModelVars(g ...string) error {
 // and (2) if any output variable names include characters that are unsupported
 // in shapefile field names.
 func checkOutputNames(o map[string]string) error {
-	for key, _ := range o {
+	for key := range o {
 		long := len(key) > 10
 		noCharError, err := regexp.MatchString("^[A-Za-z]\\w*$", key)
 		if err != nil {
@@ -624,9 +626,10 @@ func checkOutputNames(o map[string]string) error {
 	return nil
 }
 
-func (o *Outputter) CheckOutputVars() DomainManipulator {
+// CheckOutputVars ensures that the requested output variables are all valid.
+func (o *Outputter) CheckOutputVars(m Mechanism) DomainManipulator {
 	return func(d *InMAP) error {
-		if err := d.checkModelVars(o.modelVariables...); err != nil {
+		if err := d.checkModelVars(m, o.modelVariables...); err != nil {
 			return err
 		} else if err := checkOutputNames(o.outputVariables); err != nil {
 			return err
@@ -636,6 +639,7 @@ func (o *Outputter) CheckOutputVars() DomainManipulator {
 	}
 }
 
+// Output writes the simulation results to a shapefile.
 func (o *Outputter) Output() DomainManipulator {
 	return func(d *InMAP) error {
 		// Projection definition. This may need to be changed for a different
@@ -697,4 +701,201 @@ func (o *Outputter) Output() DomainManipulator {
 
 		return nil
 	}
+}
+
+// Results returns the simulation results.
+// Output is in the form of map[variable][row]concentration.
+func (d *InMAP) Results(o *Outputter) (map[string][]float64, error) {
+
+	// Prepare output data.
+	modelVals := make(map[string]interface{})
+	valByRow := make(map[string]interface{})
+	output := make(map[string][]float64)
+	var nCells int
+
+	// Get the model variables that are to be used in the output.
+	for _, name := range o.modelVariables {
+		if o.allLayers {
+			data := d.toArray(name, -1, o.m)
+			modelVals[name] = data
+			nCells = len(data)
+		} else {
+			data := d.toArray(name, 0, o.m)
+			modelVals[name] = data
+			nCells = len(data)
+		}
+	}
+
+	// Identify segments of output variable expressions that are surrounded by braces.
+	for k, v := range o.outputVariables {
+		regx, _ := regexp.Compile("\\{(.*?)\\}")
+		matches := regx.FindAllString(v, -1)
+		if len(matches) > 0 {
+			// For each segment of an expression that is surrounded by braces, evaluate
+			// across all grid cells.
+			for _, m := range matches {
+				expression, err := govaluate.NewEvaluableExpressionWithFunctions(m[1:len(m)-1], o.outputFunctions)
+				if err != nil {
+					return nil, err
+				}
+				result, err := expression.Evaluate(modelVals)
+				if err != nil {
+					return nil, err
+				}
+				// Replace segments surrounded by braces with corresponding result
+				// calculated above.
+				o.outputVariables[k] = strings.Replace(o.outputVariables[k], m, strconv.FormatFloat(result.(float64), 'f', -1, 64), 1)
+			}
+		}
+	}
+	for k, v := range o.outputVariables {
+		expression, err := govaluate.NewEvaluableExpressionWithFunctions(v, o.outputFunctions)
+		if err != nil {
+			return nil, err
+		}
+		for i := 0; i < nCells; i++ {
+			for name := range modelVals {
+				valByRow[name] = modelVals[name].([]float64)[i]
+			}
+			result, err := expression.Evaluate(valByRow)
+			if err != nil {
+				return nil, err
+			}
+			output[k] = append(output[k], result.(float64))
+		}
+	}
+	return output, nil
+}
+
+// toArray converts cell data for variable varName into a regular array.
+// If layer is less than zero, data for all layers is returned.
+func (d *InMAP) toArray(varName string, layer int, m Mechanism) []float64 {
+	o := make([]float64, 0, d.cells.len())
+	cells := d.cells.array()
+	for _, c := range cells {
+		c.mutex.RLock()
+		if layer >= 0 && c.Layer > layer {
+			// The cells should be sorted with the lower layers first, so we
+			// should be done here.
+			c.mutex.RUnlock()
+			return o
+		}
+		if layer < 0 || c.Layer == layer {
+			o = append(o, c.getValue(varName, d.popIndices, m))
+		}
+		c.mutex.RUnlock()
+	}
+	return o
+}
+
+// Get the value in the current cell of the specified variable, where popIndices
+// are array indices of each population type.
+func (c *Cell) getValue(varName string, popIndices map[string]int, m Mechanism) float64 {
+	v, err := m.Value(c, varName)
+	if err == nil {
+		return v
+	}
+	if polConv, ok := baselinePolLabels[varName]; ok { // Baseline concentrations
+		var o float64
+		for i, ii := range polConv.index {
+			o += c.CBaseline[ii] * polConv.conversion[i]
+		}
+		return o
+
+	} else if i, ok := popIndices[varName]; ok { // Population
+		return c.PopData[i]
+
+	} // Everything else
+	val := reflect.ValueOf(c).Elem().FieldByName(varName)
+	switch val.Type().Kind() {
+	case reflect.Float64:
+		return val.Float()
+	case reflect.Int:
+		return float64(val.Int()) // convert integer fields to floats here for consistency.
+	default:
+		panic(fmt.Errorf("unsupported field type %v", val.Type().Kind()))
+	}
+}
+
+// getUnits returns the units of a model variable.
+func (d *InMAP) getUnits(varName string, m Mechanism) string {
+	u, err := m.Units(varName)
+	if err == nil {
+		return u
+	}
+	if _, ok := baselinePolLabels[varName]; ok { // Concentrations
+		return "μg/m³"
+	} else if _, ok := d.popIndices[varName]; ok { // Population
+		return "people/grid cell"
+	} else if _, ok := d.popIndices[strings.Replace(varName, " deaths", "", 1)]; ok {
+		// Mortalities
+		return "deaths/grid cell"
+	}
+	// Everything else
+	t := reflect.TypeOf(*(*d.cells)[0].Cell)
+	ftype, ok := t.FieldByName(varName)
+	if ok {
+		return ftype.Tag.Get("units")
+	}
+	panic(fmt.Sprintf("Unknown variable %v.", varName))
+}
+
+// OutputOptions returns the options for output variable names and their
+// descriptions.
+func (d *InMAP) OutputOptions(m Mechanism) (names []string, descriptions []string, units []string) {
+	// Model pollutant concentrations
+	for _, pol := range m.Species() {
+		names = append(names, pol)
+	}
+	for _, n := range names {
+		if strings.Contains(n, "Emissions") {
+			descriptions = append(descriptions, n)
+		} else {
+			descriptions = append(descriptions, n+" Concentration")
+		}
+	}
+
+	// Baseline pollutant concentrations
+	var tempBaseline []string
+	for pol := range baselinePolLabels {
+		tempBaseline = append(tempBaseline, pol)
+	}
+	sort.Strings(tempBaseline)
+	names = append(names, tempBaseline...)
+	for _, n := range tempBaseline {
+		descriptions = append(descriptions, n+"Concentration")
+	}
+
+	// Population and deaths
+	var tempPop []string
+	for pop := range d.popIndices {
+		tempPop = append(tempPop, pop)
+	}
+	sort.Strings(tempPop)
+	names = append(names, tempPop...)
+	for _, n := range tempPop {
+		descriptions = append(descriptions, n+"Population")
+	}
+
+	// Eveything else
+	t := reflect.TypeOf(*(*d.cells)[0].Cell)
+	var tempNames []string
+	var tempDescriptions []string
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		v := f.Name
+		desc := f.Tag.Get("desc")
+		if desc != "" {
+			tempDescriptions = append(tempDescriptions, desc)
+			tempNames = append(tempNames, v)
+		}
+	}
+	names = append(names, tempNames...)
+	descriptions = append(descriptions, tempDescriptions...)
+
+	units = make([]string, len(names))
+	for i, n := range names {
+		units[i] = d.getUnits(n, m)
+	}
+	return
 }

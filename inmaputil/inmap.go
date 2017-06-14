@@ -23,9 +23,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"sort"
-	"strings"
-	"text/tabwriter"
 	"time"
 
 	"github.com/spatialmodel/inmap"
@@ -48,6 +45,8 @@ func getCTMData(cfg *ConfigData) (*inmap.CTMData, error) {
 	return ctmData, nil
 }
 
+var m simplechem.Mechanism
+
 // DefaultScienceFuncs are the science functions that are run in
 // typical simulations.
 var DefaultScienceFuncs = []inmap.CellManipulator{
@@ -56,7 +55,7 @@ var DefaultScienceFuncs = []inmap.CellManipulator{
 	inmap.MeanderMixing(),
 	simpledrydep.DryDeposition(simplechem.SimpleDryDepIndices),
 	emepwetdep.WetDeposition(simplechem.EMEPWetDepIndices),
-	simplechem.Chemistry(),
+	m.Chemistry(),
 }
 
 // Run runs the model. dynamic and createGrid specify whether the variable
@@ -94,7 +93,8 @@ func Run(cfg *ConfigData, dynamic, createGrid bool, scienceFuncs []inmap.CellMan
 		}
 	}()
 
-	o, err := inmap.NewOutputter(cfg.OutputFile, cfg.OutputAllLayers, cfg.OutputVariables, nil)
+	var m simplechem.Mechanism
+	o, err := inmap.NewOutputter(cfg.OutputFile, cfg.OutputAllLayers, cfg.OutputVariables, nil, m)
 	if err != nil {
 		return err
 	}
@@ -135,8 +135,8 @@ func Run(cfg *ConfigData, dynamic, createGrid bool, scienceFuncs []inmap.CellMan
 				return err
 			}
 			initFuncs = []inmap.DomainManipulator{
-				cfg.VarGrid.RegularGrid(ctmData, pop, popIndices, mr, emis, simplechem.AddEmisFlux),
-				cfg.VarGrid.MutateGrid(mutator, ctmData, pop, mr, emis, simplechem.AddEmisFlux, msgLog),
+				cfg.VarGrid.RegularGrid(ctmData, pop, popIndices, mr, emis, m),
+				cfg.VarGrid.MutateGrid(mutator, ctmData, pop, mr, emis, m, msgLog),
 				inmap.SetTimestepCFL(),
 			}
 		} else { // pre-created static grid
@@ -146,9 +146,9 @@ func Run(cfg *ConfigData, dynamic, createGrid bool, scienceFuncs []inmap.CellMan
 				return fmt.Errorf("problem opening file to load VariableGridData: %v", err)
 			}
 			initFuncs = []inmap.DomainManipulator{
-				inmap.Load(r, &cfg.VarGrid, emis, simplechem.AddEmisFlux),
+				inmap.Load(r, &cfg.VarGrid, emis, m),
 				inmap.SetTimestepCFL(),
-				o.CheckOutputVars(),
+				o.CheckOutputVars(m),
 			}
 		}
 		runFuncs = []inmap.DomainManipulator{
@@ -160,9 +160,9 @@ func Run(cfg *ConfigData, dynamic, createGrid bool, scienceFuncs []inmap.CellMan
 		}
 	} else { // dynamic grid
 		initFuncs = []inmap.DomainManipulator{
-			cfg.VarGrid.RegularGrid(ctmData, pop, popIndices, mr, emis, simplechem.AddEmisFlux),
+			cfg.VarGrid.RegularGrid(ctmData, pop, popIndices, mr, emis, m),
 			inmap.SetTimestepCFL(),
-			o.CheckOutputVars(),
+			o.CheckOutputVars(m),
 		}
 		popConcMutator := inmap.NewPopConcMutator(&cfg.VarGrid, popIndices)
 		const gridMutateInterval = 3 * 60 * 60 // every 3 hours in seconds
@@ -172,7 +172,7 @@ func Run(cfg *ConfigData, dynamic, createGrid bool, scienceFuncs []inmap.CellMan
 			scienceCalcs,
 			inmap.RunPeriodically(gridMutateInterval,
 				cfg.VarGrid.MutateGrid(popConcMutator.Mutate(),
-					ctmData, pop, mr, emis, simplechem.AddEmisFlux, msgLog)),
+					ctmData, pop, mr, emis, m, msgLog)),
 			inmap.RunPeriodically(gridMutateInterval, inmap.SetTimestepCFL()),
 			inmap.SteadyStateConvergenceCheck(cfg.NumIterations,
 				cfg.VarGrid.PopGridColumn, cConverge),
@@ -210,34 +210,6 @@ func Run(cfg *ConfigData, dynamic, createGrid bool, scienceFuncs []inmap.CellMan
 	if err = d.Cleanup(); err != nil {
 		return fmt.Errorf("InMAP: problem shutting down model: %v\n", err)
 	}
-
-	log.Println("\nIntake fraction results:")
-	breathingRate := 15. // [m³/day]
-	iF := d.IntakeFraction(breathingRate)
-	// Write iF to stdout
-	w1 := tabwriter.NewWriter(os.Stdout, 0, 8, 1, '\t', 0)
-	// Write iF to log
-	w2 := tabwriter.NewWriter(logfile, 0, 8, 1, '\t', 0)
-	var popList []string
-	for _, m := range iF {
-		for p := range m {
-			popList = append(popList, p)
-		}
-		break
-	}
-	sort.Strings(popList)
-	fmt.Fprintln(w1, strings.Join(append([]string{"pol"}, popList...), "\t"))
-	fmt.Fprintln(w2, strings.Join(append([]string{"pol"}, popList...), "\t"))
-	for pol, m := range iF {
-		temp := make([]string, len(popList))
-		for i, pop := range popList {
-			temp[i] = fmt.Sprintf("%.3g", m[pop])
-		}
-		fmt.Fprintln(w1, strings.Join(append([]string{pol}, temp...), "\t"))
-		fmt.Fprintln(w2, strings.Join(append([]string{pol}, temp...), "\t"))
-	}
-	w1.Flush()
-	w2.Flush()
 
 	elapsedTime := time.Since(startTime)
 	log.Printf("Elapsed time: %f hours", elapsedTime.Hours())

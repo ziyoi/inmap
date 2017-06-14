@@ -64,9 +64,10 @@ func NewWorker(cfg *ConfigData) (*sr.Worker, error) {
 	if err != nil {
 		return nil, fmt.Errorf("problem opening file to load VariableGridData: %v", err)
 	}
+	var m simplechem.Mechanism
 	d := &inmap.InMAP{
 		InitFuncs: []inmap.DomainManipulator{
-			inmap.Load(r, &cfg.VarGrid, nil, simplechem.AddEmisFlux),
+			inmap.Load(r, &cfg.VarGrid, nil, m),
 		},
 	}
 	if err = d.Init(); err != nil {

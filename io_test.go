@@ -152,10 +152,11 @@ func TestEmissions(t *testing.T) {
 		t.FailNow()
 	}
 	cfg, ctmdata, pop, popIndices, mr := VarGridTestData()
+	m := Mech{}
 
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, AddEmisFlux),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, m),
 		},
 	}
 	if err := d.Init(); err != nil {
@@ -220,19 +221,20 @@ func TestOutputEquation(t *testing.T) {
 		Geom: geom.Point{X: -3999, Y: -3999.},
 	}) // ground level emissions
 
+	m := Mech{}
 	o, err := NewOutputter(TestOutputFilename, false, map[string]string{
 		"WindSpeed":  "WindSpeed",
 		"DoubleWind": "WindSpeed * 2",
 		"ExpWind":    "exp(WindSpeed)",
 		"ExpTwoWind": "exp(DoubleWind)"},
-		nil)
+		nil, m)
 	if err != nil {
 		t.Error(err)
 	}
 
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, AddEmisFlux),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, m),
 		},
 		CleanupFuncs: []DomainManipulator{
 			o.Output(),
@@ -319,6 +321,7 @@ func BenchmarkOutput(b *testing.B) {
 	}) // ground level emissions
 
 	var o *Outputter
+	var m Mech
 
 	b.Run("NewOutputter", func(b *testing.B) {
 		oBench, err := NewOutputter(TestOutputFilename, false, map[string]string{
@@ -332,7 +335,7 @@ func BenchmarkOutput(b *testing.B) {
 			"PM25Emiss":  "PM25Emissions",
 			"BasePM25":   "BaselineTotalPM25",
 			"WindSpeed":  "WindSpeed"},
-			nil)
+			nil, m)
 		if err != nil {
 			b.Error(err)
 		}
@@ -341,8 +344,8 @@ func BenchmarkOutput(b *testing.B) {
 
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, AddEmisFlux),
-			o.CheckOutputVars(),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, m),
+			o.CheckOutputVars(m),
 		},
 		CleanupFuncs: []DomainManipulator{
 			o.Output(),
@@ -368,6 +371,7 @@ func TestOutput(t *testing.T) {
 		PM25: E,
 		Geom: geom.Point{X: -3999, Y: -3999.},
 	}) // ground level emissions
+	var m Mech
 
 	o, err := NewOutputter(TestOutputFilename, false, map[string]string{
 		"TotalPop":   "TotalPop",
@@ -380,15 +384,15 @@ func TestOutput(t *testing.T) {
 		"PM25Emiss":  "PM25Emissions",
 		"BasePM25":   "BaselineTotalPM25",
 		"WindSpeed":  "WindSpeed"},
-		nil)
+		nil, m)
 	if err != nil {
 		t.Error(err)
 	}
 
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, AddEmisFlux),
-			o.CheckOutputVars(),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, m),
+			o.CheckOutputVars(m),
 		},
 		CleanupFuncs: []DomainManipulator{
 			o.Output(),
@@ -528,6 +532,7 @@ func TestCellIntersections(t *testing.T) {
 	cfg, ctmdata, pop, popIndices, mr := VarGridTestData()
 
 	emis := NewEmissions()
+	var m Mech
 
 	mutator, err := PopulationMutator(cfg, popIndices)
 	if err != nil {
@@ -535,8 +540,8 @@ func TestCellIntersections(t *testing.T) {
 	}
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, AddEmisFlux),
-			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, AddEmisFlux, nil),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, m),
+			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, m, nil),
 		},
 	}
 	if err := d.Init(); err != nil {
@@ -739,10 +744,11 @@ func (c *cellsFracSorter) Swap(i, j int) {
 
 func TestFromAEP(t *testing.T) {
 	cfg, ctmdata, pop, popIndices, mr := VarGridTestData()
+	var m Mech
 
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, nil, AddEmisFlux),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, nil, m),
 		},
 	}
 	if err := d.Init(); err != nil {
@@ -953,10 +959,11 @@ func TestFromAEP(t *testing.T) {
 
 func BenchmarkFromAEP(b *testing.B) {
 	cfg, ctmdata, pop, popIndices, mr := VarGridTestData()
+	var m Mech
 
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, nil, AddEmisFlux),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, nil, m),
 		},
 	}
 	if err := d.Init(); err != nil {

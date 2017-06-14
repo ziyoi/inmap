@@ -48,15 +48,16 @@ func TestChemistry(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	m := Mechanism{}
 	d := &inmap.InMAP{
 		InitFuncs: []inmap.DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, AddEmisFlux),
-			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, AddEmisFlux, nil),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, m),
+			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, m, nil),
 			inmap.SetTimestepCFL(),
 		},
 		RunFuncs: []inmap.DomainManipulator{
 			inmap.Calculations(inmap.AddEmissionsFlux()),
-			inmap.Calculations(Chemistry()),
+			inmap.Calculations(m.Chemistry()),
 			inmap.SteadyStateConvergenceCheck(1, cfg.PopGridColumn, nil),
 		},
 	}
@@ -81,6 +82,74 @@ func TestChemistry(t *testing.T) {
 	}
 	if different(sum, 5*E*d.Dt, testTolerance) {
 		t.Error("different")
+	}
+
+	v, err := m.Value(c, "SOxEmissions")
+	if err != nil {
+		t.Error(err)
+	}
+	want := 0.03592305295110578
+	if v != want {
+		t.Errorf("have %g, want %g", v, want)
+	}
+	v, err = m.Value(c, "TotalPM25")
+	if err != nil {
+		t.Error(err)
+	}
+	want = 2.706438081780582
+	if v != want {
+		t.Errorf("have %g, want %g", v, want)
+	}
+	_, err = m.Value(c, "xxxxx")
+	if err == nil {
+		t.Error("should be an error")
+	}
+
+}
+
+func TestDryDep(t *testing.T) {
+	m := Mechanism{}
+	_, err := m.DryDep("simple")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = m.DryDep("XXX")
+	if err == nil {
+		t.Fatal("should be an error")
+	}
+}
+
+func TestWetDep(t *testing.T) {
+	m := Mechanism{}
+	_, err := m.WetDep("emep")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = m.WetDep("XXX")
+	if err == nil {
+		t.Fatal("should be an error")
+	}
+}
+
+func TestUnits(t *testing.T) {
+	m := Mechanism{}
+	u, err := m.Units("VOCEmissions")
+	if err != nil {
+		t.Error(err)
+	}
+	if u != "μg/m³/s" {
+		t.Errorf("want: 'μg/m³/s'; have '%s'", u)
+	}
+	u, err = m.Units("SOA")
+	if err != nil {
+		t.Error(err)
+	}
+	if u != "μg/m³" {
+		t.Errorf("want: 'μg/m³'; have '%s'", u)
+	}
+	_, err = m.Units("xxxx")
+	if err == nil {
+		t.Error("should be an error")
 	}
 }
 

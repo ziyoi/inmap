@@ -20,6 +20,7 @@ import (
 	"github.com/gonum/plot/vg/vgimg"
 	"github.com/spatialmodel/inmap"
 	"github.com/spatialmodel/inmap/inmaputil"
+	"github.com/spatialmodel/inmap/science/chem/simplechem"
 )
 
 // TestAnimation_logo creates a series of images that show the progression of a simulation
@@ -280,8 +281,8 @@ type geomConc struct {
 
 func saveConc(outChan chan []geomConc) inmap.DomainManipulator {
 	return func(d *inmap.InMAP) error {
-
-		o, err := inmap.NewOutputter("", false, map[string]string{"TotalPM25": "TotalPM25"}, nil)
+		var m simplechem.Mechanism
+		o, err := inmap.NewOutputter("", false, map[string]string{"TotalPM25": "TotalPM25"}, nil, m)
 		if err != nil {
 			return err
 		}

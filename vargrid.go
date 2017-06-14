@@ -24,6 +24,8 @@ import (
 	"os"
 	"runtime"
 	"sort"
+	"strconv"
+	"strings"
 
 	"bitbucket.org/ctessum/cdf"
 	"bitbucket.org/ctessum/sparse"
@@ -331,11 +333,8 @@ func (config *VarGridConfig) webMapTrans() (proj.Transformer, error) {
 // RegularGrid returns a function that creates a new regular
 // (i.e., not variable resolution) grid
 // as specified by the information in c.
-// addEmisFlux is a chemistry mechanism-specific function for adding
-// emissions flux to a given cell.
-func (config *VarGridConfig) RegularGrid(data *CTMData, pop *Population, popIndex PopIndices, mort *MortalityRates, emis *Emissions, addEmisFlux func(c *Cell, name string, val float64) error) DomainManipulator {
+func (config *VarGridConfig) RegularGrid(data *CTMData, pop *Population, popIndex PopIndices, mort *MortalityRates, emis *Emissions, m Mechanism) DomainManipulator {
 	return func(d *InMAP) error {
-
 		webMapTrans, err := config.webMapTrans()
 		if err != nil {
 			return err
@@ -364,7 +363,7 @@ func (config *VarGridConfig) RegularGrid(data *CTMData, pop *Population, popInde
 				}
 			}
 		}
-		err = d.addCells(config, indices, layers, nil, data, pop, mort, emis, webMapTrans, addEmisFlux)
+		err = d.addCells(config, indices, layers, nil, data, pop, mort, emis, webMapTrans, m)
 		if err != nil {
 			return err
 		}
@@ -393,12 +392,9 @@ func (d *InMAP) totalMassPopulation(popGridColumn string) (totalMass, totalPopul
 // by dividing cells as determined by divideRule. Cells where divideRule is
 // true are divided to the next nest level (up to the maximum nest level), and
 // cells where divideRule is false are combined (down to the baseline nest level).
-// addEmisFlux is a chemistry mechanism-specific function for adding
-// emissions flux to a given cell.
 // Log messages are written to logChan if it is not nil.
-func (config *VarGridConfig) MutateGrid(divideRule GridMutator, data *CTMData, pop *Population, mort *MortalityRates, emis *Emissions, addEmisFlux func(c *Cell, name string, val float64) error, logChan chan string) DomainManipulator {
+func (config *VarGridConfig) MutateGrid(divideRule GridMutator, data *CTMData, pop *Population, mort *MortalityRates, emis *Emissions, m Mechanism, logChan chan string) DomainManipulator {
 	return func(d *InMAP) error {
-
 		if logChan != nil {
 			logChan <- fmt.Sprint("Adding grid cells...")
 		}
@@ -457,7 +453,7 @@ func (config *VarGridConfig) MutateGrid(divideRule GridMutator, data *CTMData, p
 
 			// Add new cells.
 			err = d.addCells(config, newCellIndices, newCellLayers, newCellConc,
-				data, pop, mort, emis, webMapTrans, addEmisFlux)
+				data, pop, mort, emis, webMapTrans, m)
 			if err != nil {
 				return err
 			}
@@ -476,7 +472,7 @@ func (config *VarGridConfig) MutateGrid(divideRule GridMutator, data *CTMData, p
 func (d *InMAP) addCells(config *VarGridConfig, newCellIndices [][][2]int,
 	newCellLayers []int, conc [][]float64, data *CTMData, pop *Population,
 	mort *MortalityRates, emis *Emissions, webMapTrans proj.Transformer,
-	addEmisFlux func(c *Cell, name string, val float64) error) error {
+	m Mechanism) error {
 	type cellErr struct {
 		cell *Cell
 		err  error
@@ -515,7 +511,7 @@ func (d *InMAP) addCells(config *VarGridConfig, newCellIndices [][][2]int,
 				for i := p; i < d.cells.len(); i += nprocs {
 					c := (*d.cells)[i]
 					if len(c.EmisFlux) == 0 {
-						if err := c.setEmissionsFlux(emis, addEmisFlux); err != nil { // This needs to be called after setNeighbors.
+						if err := c.setEmissionsFlux(emis, m); err != nil { // This needs to be called after setNeighbors.
 							errChan <- err
 							return
 						}
@@ -805,6 +801,15 @@ func (config *VarGridConfig) loadPopulation(sr *proj.SR) (*rtree.Rtree, map[stri
 
 	popshp.Close()
 	return pop, popIndices, nil
+}
+
+func s2f(s string) (float64, error) {
+	if strings.Contains(s, "\x00\x00\x00\x00\x00\x00") || strings.Contains(s, "***") || s == "" {
+		// null value
+		return 0., nil
+	}
+	f, err := strconv.ParseFloat(s, 64)
+	return f, err
 }
 
 func (config *VarGridConfig) loadMortality(sr *proj.SR) (*rtree.Rtree, error) {

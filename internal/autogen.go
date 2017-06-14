@@ -87,15 +87,16 @@ func writeOutputOptions() {
 		log.Fatal(err)
 	}
 
+	var m simplechem.Mechanism
 	d := &inmap.InMAP{
 		InitFuncs: []inmap.DomainManipulator{
-			inmap.Load(r, &cfg.VarGrid, inmap.NewEmissions(), simplechem.AddEmisFlux),
+			inmap.Load(r, &cfg.VarGrid, inmap.NewEmissions(), m),
 		},
 	}
 	if err = d.Init(); err != nil {
 		log.Fatal(err)
 	}
-	names, descriptions, units := d.OutputOptions()
+	names, descriptions, units := d.OutputOptions(m)
 
 	f, err := os.Create("doc/OutputOptions.md")
 	if err != nil {

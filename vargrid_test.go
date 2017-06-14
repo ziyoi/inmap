@@ -19,7 +19,6 @@ along with InMAP.  If not, see <http://www.gnu.org/licenses/>.
 package inmap
 
 import (
-	"fmt"
 	"math"
 	"os"
 	"reflect"
@@ -28,34 +27,6 @@ import (
 	"github.com/ctessum/geom"
 	"github.com/ctessum/geom/index/rtree"
 )
-
-// emisConv lists the accepted names for emissions species, the array
-// indices they correspond to, and the
-// factors needed to convert [μg/s] of emitted species to [μg/s] of
-// model species.
-var emisConv = map[string]struct {
-	i    int
-	conv float64
-}{
-	"VOC":   {i: igOrg, conv: 1},
-	"NOx":   {i: igNO, conv: NOxToN},
-	"NH3":   {i: igNH, conv: NH3ToN},
-	"SOx":   {i: igS, conv: SOxToS},
-	"PM2_5": {i: iPM2_5, conv: 1},
-}
-
-// AddEmisFlux adds emissions flux to Cell c based on the given
-// pollutant name and amount in units of μg/s. The units of
-// the resulting flux are μg/m3/s.
-func AddEmisFlux(c *Cell, name string, val float64) error {
-	fluxScale := 1. / c.Dx / c.Dy / c.Dz // μg/s /m/m/m = μg/m3/s
-	conv, ok := emisConv[name]
-	if !ok {
-		return fmt.Errorf("simplechem: '%s' is not a valid emissions species; valid options are VOC, NOx, NH3, SOx, and PM2_5", name)
-	}
-	c.EmisFlux[conv.i] += val * conv.conv * fluxScale
-	return nil
-}
 
 func TestVarGridCreate(t *testing.T) {
 	cfg, ctmdata, pop, popIndices, mr := VarGridTestData()
@@ -67,10 +38,11 @@ func TestVarGridCreate(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	var m Mech
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, AddEmisFlux),
-			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, AddEmisFlux, nil),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, m),
+			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, m, nil),
 		},
 	}
 	if err := d.Init(); err != nil {
@@ -748,10 +720,11 @@ func TestGetGeometry(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	var m Mech
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, AddEmisFlux),
-			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, AddEmisFlux, nil),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, m),
+			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, m, nil),
 		},
 	}
 	if err := d.Init(); err != nil {

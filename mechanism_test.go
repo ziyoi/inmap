@@ -16,58 +16,19 @@ You should have received a copy of the GNU General Public License
 along with InMAP.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// Package simplechem contains a simplified atmospheric chemistry mechanism.
-package simplechem
+package inmap
 
 import (
 	"fmt"
 	"math"
-
-	"github.com/spatialmodel/inmap"
-	"github.com/spatialmodel/inmap/science/drydep/simpledrydep"
-	"github.com/spatialmodel/inmap/science/wetdep/emepwetdep"
 )
 
-// Mechanism fulfils the github.com/spatialmodel/inmap/science/chem/mechanism
+// Mech is an example type fulfils the github.com/spatialmodel/inmap/Mechanism
 // interface.
-type Mechanism struct{}
-
-// physical constants
-const (
-	// Molar masses [grams per mole]
-	mwNOx = 46.0055
-	mwN   = 14.0067 // g/mol, molar mass of nitrogen
-	mwNO3 = 62.00501
-	mwNH3 = 17.03056
-	mwNH4 = 18.03851
-	mwS   = 32.0655 // g/mol, molar mass of sulfur
-	mwSO2 = 64.0644
-	mwSO4 = 96.0632
-
-	// Chemical mass conversions [ratios]
-	NOxToN = mwN / mwNOx
-	NtoNO3 = mwNO3 / mwN
-	SOxToS = mwSO2 / mwS
-	StoSO4 = mwS / mwSO4
-	NH3ToN = mwN / mwNH3
-	NtoNH4 = mwNH4 / mwN
-)
-
-// Indicies of individual pollutants in arrays.
-const (
-	igOrg int = iota
-	ipOrg
-	iPM2_5
-	igNH
-	ipNH
-	igS
-	ipS
-	igNO
-	ipNO
-)
+type Mech struct{}
 
 // Len returns the number of chemical species in this mechanism (9).
-func (m Mechanism) Len() int {
+func (m Mech) Len() int {
 	return 9
 }
 
@@ -89,60 +50,33 @@ var emisConv = map[string]struct {
 // AddEmisFlux adds emissions flux to Cell c based on the given
 // pollutant name and amount in units of μg/s. The units of
 // the resulting flux are μg/m3/s.
-func (m Mechanism) AddEmisFlux(c *inmap.Cell, name string, val float64) error {
+func (m Mech) AddEmisFlux(c *Cell, name string, val float64) error {
 	fluxScale := 1. / c.Dx / c.Dy / c.Dz // μg/s /m/m/m = μg/m3/s
 	conv, ok := emisConv[name]
 	if !ok {
 		return fmt.Errorf("simplechem: '%s' is not a valid emissions species; valid options are VOC, NOx, NH3, SOx, and PM2_5", name)
 	}
-	if c.EmisFlux == nil {
-		c.EmisFlux = make([]float64, m.Len())
-	}
 	c.EmisFlux[conv.i] += val * conv.conv * fluxScale
 	return nil
 }
 
-// SimpleDryDepIndices provides array indices for use with package simpledrydep.
-func SimpleDryDepIndices() (simpledrydep.SOx, simpledrydep.NH3, simpledrydep.NOx, simpledrydep.VOC, simpledrydep.PM25) {
-	return simpledrydep.SOx{igS}, simpledrydep.NH3{igNH}, simpledrydep.NOx{igNO}, simpledrydep.VOC{igOrg}, simpledrydep.PM25{ipOrg, iPM2_5, ipNH, ipS, ipNO}
-}
-
 // DryDep returns a dry deposition function of the type indicated by
 // name that is compatible with this chemical mechanism.
-// Currently, the only valid option is "simple".
-func (m Mechanism) DryDep(name string) (inmap.CellManipulator, error) {
-	options := map[string]inmap.CellManipulator{
-		"simple": simpledrydep.DryDeposition(SimpleDryDepIndices),
-	}
-	f, ok := options[name]
-	if !ok {
-		return nil, fmt.Errorf("simplechem: invalid dry deposition option %s; 'chem' is the only valid option", name)
-	}
-	return f, nil
-}
-
-// EMEPWetDepIndices provides array indices for use with package emepwetdep.
-func EMEPWetDepIndices() (emepwetdep.SO2, emepwetdep.OtherGas, emepwetdep.PM25) {
-	return emepwetdep.SO2{igS}, emepwetdep.OtherGas{igNH, igNO, igOrg}, emepwetdep.PM25{ipOrg, iPM2_5, ipNH, ipS, ipNO}
+// No options are available in this example.
+func (m Mech) DryDep(name string) (CellManipulator, error) {
+	panic("DryDep not implemented")
 }
 
 // WetDep returns a dry deposition function of the type indicated by
 // name that is compatible with this chemical mechanism.
-// Currently, the only valid option is "emep".
-func (m Mechanism) WetDep(name string) (inmap.CellManipulator, error) {
-	options := map[string]inmap.CellManipulator{
-		"emep": emepwetdep.WetDeposition(EMEPWetDepIndices),
-	}
-	f, ok := options[name]
-	if !ok {
-		return nil, fmt.Errorf("simplechem: invalid wet deposition option %s; 'emep' is the only valid option", name)
-	}
-	return f, nil
+// No options are available in this example.
+func (m Mech) WetDep(name string) (CellManipulator, error) {
+	panic("WetDep not implemented")
 }
 
 // Species returns the names of the emission and concentration pollutant
 // species that are used by this chemical mechanism.
-func (m Mechanism) Species() []string {
+func (m Mech) Species() []string {
 	return []string{
 		"VOCEmissions",
 		"NOxEmissions",
@@ -162,8 +96,7 @@ func (m Mechanism) Species() []string {
 	}
 }
 
-var emisLabels = map[string]int{
-	"VOCEmissions":  igOrg,
+var emisLabels = map[string]int{"VOCEmissions": igOrg,
 	"NOxEmissions":  igNO,
 	"NH3Emissions":  igNH,
 	"SOxEmissions":  igS,
@@ -191,13 +124,10 @@ var polLabels = map[string]struct {
 // Value returns the concentration or emissions value of
 // the given variable in the given Cell. It returns an
 // error if given an invalid variable name.
-func (m Mechanism) Value(c *inmap.Cell, variable string) (float64, error) {
+func (m Mech) Value(c *Cell, variable string) (float64, error) {
 	i, ok := emisLabels[variable]
 	if ok {
-		if c.EmisFlux != nil {
-			return c.EmisFlux[i], nil
-		}
-		return 0, nil
+		return c.EmisFlux[i], nil
 	}
 	conv, ok := polLabels[variable]
 	if !ok {
@@ -212,7 +142,7 @@ func (m Mechanism) Value(c *inmap.Cell, variable string) (float64, error) {
 
 // Units returns the units of the given variable, or an
 // error if the variable name is invalid.
-func (m Mechanism) Units(variable string) (string, error) {
+func (m Mech) Units(variable string) (string, error) {
 	if _, ok := emisLabels[variable]; ok {
 		return "μg/m³/s", nil
 	}
@@ -230,8 +160,8 @@ func (m Mechanism) Units(variable string) (string, error) {
 // "pNH) between gaseous and particulate phase
 // based on the spatially explicit partioning present in the baseline data.
 // The function arguments represent the array indices of each chemical species.
-func (m Mechanism) Chemistry() inmap.CellManipulator {
-	return func(c *inmap.Cell, Δt float64) {
+func (m Mech) Chemistry() CellManipulator {
+	return func(c *Cell, Δt float64) {
 		// All SO4 forms particles, so sulfur particle formation is limited by the
 		// SO2 -> SO4 reaction.
 		ΔS := c.SO2oxidation * c.Cf[igS] * Δt

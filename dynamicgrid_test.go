@@ -49,10 +49,11 @@ func TestDynamicGrid(t *testing.T) {
 	}) // ground level emissions
 
 	popConcMutator := inmap.NewPopConcMutator(cfg, popIndices)
+	var m simplechem.Mechanism
 
 	d := &inmap.InMAP{
 		InitFuncs: []inmap.DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, simplechem.AddEmisFlux),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, m),
 			inmap.SetTimestepCFL(),
 		},
 		RunFuncs: []inmap.DomainManipulator{
@@ -63,11 +64,10 @@ func TestDynamicGrid(t *testing.T) {
 				inmap.MeanderMixing(),
 				simpledrydep.DryDeposition(simplechem.SimpleDryDepIndices),
 				emepwetdep.WetDeposition(simplechem.EMEPWetDepIndices),
-				simplechem.Chemistry(),
+				m.Chemistry(),
 			),
 			inmap.RunPeriodically(gridMutateInterval,
-				cfg.MutateGrid(popConcMutator.Mutate(),
-					ctmdata, pop, mr, emis, simplechem.AddEmisFlux, nil)),
+				cfg.MutateGrid(popConcMutator.Mutate(), ctmdata, pop, mr, emis, m, nil)),
 			inmap.RunPeriodically(gridMutateInterval, inmap.SetTimestepCFL()),
 			inmap.SteadyStateConvergenceCheck(-1, cfg.PopGridColumn, nil),
 		},
@@ -90,7 +90,7 @@ func TestDynamicGrid(t *testing.T) {
 		t.Errorf("dynamic grid should have %v cells but instead has %v", wantCells, cells)
 	}
 
-	o, err := inmap.NewOutputter("", false, map[string]string{"TotalPopD": "coxHazard(loglogRR(TotalPM25), TotalPop, MortalityRate)"}, nil)
+	o, err := inmap.NewOutputter("", false, map[string]string{"TotalPopD": "coxHazard(loglogRR(TotalPM25), TotalPop, MortalityRate)"}, nil, m)
 	if err != nil {
 		t.Error(err)
 	}

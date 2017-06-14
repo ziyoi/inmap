@@ -58,10 +58,11 @@ func TestConverge(t *testing.T) {
 	for i, conv := range convergences {
 
 		iterations := 0
+		var m simplechem.Mechanism
 
 		d := &inmap.InMAP{
 			InitFuncs: []inmap.DomainManipulator{
-				cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, simplechem.AddEmisFlux),
+				cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, m),
 				inmap.SetTimestepCFL(),
 			},
 			RunFuncs: []inmap.DomainManipulator{
@@ -95,7 +96,7 @@ func TestConverge(t *testing.T) {
 			t.Logf("%s completed after %d iterations.", convergenceNames[i], iterations)
 		}
 
-		o, err := inmap.NewOutputter("", false, map[string]string{"PrimPM25": "PrimaryPM25"}, nil)
+		o, err := inmap.NewOutputter("", false, map[string]string{"PrimPM25": "PrimaryPM25"}, nil, m)
 		if err != nil {
 			t.Error(err)
 		}
@@ -130,10 +131,11 @@ func BenchmarkRun(b *testing.B) {
 	if err != nil {
 		b.Error(err)
 	}
+	var m simplechem.Mechanism
 	d := &inmap.InMAP{
 		InitFuncs: []inmap.DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, simplechem.AddEmisFlux),
-			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, simplechem.AddEmisFlux, nil),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, m),
+			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, m, nil),
 			inmap.SetTimestepCFL(),
 		},
 		RunFuncs: []inmap.DomainManipulator{
@@ -144,7 +146,7 @@ func BenchmarkRun(b *testing.B) {
 				inmap.MeanderMixing(),
 				simpledrydep.DryDeposition(simplechem.SimpleDryDepIndices),
 				emepwetdep.WetDeposition(simplechem.EMEPWetDepIndices),
-				simplechem.Chemistry(),
+				m.Chemistry(),
 			),
 			inmap.SteadyStateConvergenceCheck(1000, cfg.PopGridColumn, nil),
 		},
@@ -156,7 +158,7 @@ func BenchmarkRun(b *testing.B) {
 		b.Error(err)
 	}
 
-	o, err := inmap.NewOutputter("", false, map[string]string{"TotalPopDeaths": "coxHazard(loglogRR(TotalPM25), TotalPop, MortalityRate)"}, nil)
+	o, err := inmap.NewOutputter("", false, map[string]string{"TotalPopDeaths": "coxHazard(loglogRR(TotalPM25), TotalPop, MortalityRate)"}, nil, m)
 	if err != nil {
 		b.Error(err)
 	}
@@ -190,10 +192,11 @@ func TestBigM2d(t *testing.T) {
 		NH3:  E,
 		Geom: geom.Point{X: -3999, Y: -3999.},
 	}) // ground level emissions
+	var m simplechem.Mechanism
 
 	d := &inmap.InMAP{
 		InitFuncs: []inmap.DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, simplechem.AddEmisFlux),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, m),
 			inmap.SetTimestepCFL(),
 		},
 		RunFuncs: []inmap.DomainManipulator{
@@ -204,7 +207,7 @@ func TestBigM2d(t *testing.T) {
 				inmap.MeanderMixing(),
 				simpledrydep.DryDeposition(simplechem.SimpleDryDepIndices),
 				emepwetdep.WetDeposition(simplechem.EMEPWetDepIndices),
-				simplechem.Chemistry(),
+				m.Chemistry(),
 			),
 			inmap.SteadyStateConvergenceCheck(-1, cfg.PopGridColumn, nil),
 		},
@@ -216,7 +219,7 @@ func TestBigM2d(t *testing.T) {
 		t.Error(err)
 	}
 
-	o, err := inmap.NewOutputter("", false, map[string]string{"TotalPM25": "TotalPM25"}, nil)
+	o, err := inmap.NewOutputter("", false, map[string]string{"TotalPM25": "TotalPM25"}, nil, m)
 	if err != nil {
 		t.Error(err)
 	}
@@ -240,11 +243,12 @@ func TestCellAlignment(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	var m simplechem.Mechanism
 
 	d := &inmap.InMAP{
 		InitFuncs: []inmap.DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, simplechem.AddEmisFlux),
-			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, simplechem.AddEmisFlux, nil),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, m),
+			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, m, nil),
 		},
 	}
 	if err := d.Init(); err != nil {

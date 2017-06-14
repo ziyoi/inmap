@@ -36,10 +36,11 @@ func TestSaveLoad(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	var m simplechem.Mechanism
 	d := &inmap.InMAP{
 		InitFuncs: []inmap.DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, simplechem.AddEmisFlux),
-			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, simplechem.AddEmisFlux, nil),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, m),
+			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, m, nil),
 			inmap.Save(buf),
 		},
 	}
@@ -49,7 +50,7 @@ func TestSaveLoad(t *testing.T) {
 
 	d2 := &inmap.InMAP{
 		InitFuncs: []inmap.DomainManipulator{
-			inmap.Load(buf, cfg, nil, simplechem.AddEmisFlux),
+			inmap.Load(buf, cfg, nil, m),
 		},
 	}
 	if err := d2.Init(); err != nil {

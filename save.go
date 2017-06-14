@@ -69,16 +69,15 @@ func Save(w io.Writer) DomainManipulator {
 }
 
 // Load returns a function that loads the data from a previously Saved file
-// into an InMAP object. addEmisFlux is a chemistry mechanism-specific
-// function for adding emissions flux to a given cell.
-func Load(r io.Reader, config *VarGridConfig, emis *Emissions, addEmisFlux func(c *Cell, name string, val float64) error) DomainManipulator {
+// into an InMAP object.
+func Load(r io.Reader, config *VarGridConfig, emis *Emissions, m Mechanism) DomainManipulator {
 	return func(d *InMAP) error {
 		dec := gob.NewDecoder(r)
 		var data versionCells
 		if err := dec.Decode(&data); err != nil {
 			return fmt.Errorf("inmap.InMAP.Load: %v", err)
 		}
-		if err := d.initFromCells(data.Cells, emis, config, addEmisFlux); err != nil {
+		if err := d.initFromCells(data.Cells, emis, config, m); err != nil {
 			return err
 		}
 		if data.DataVersion != VarGridDataVersion {
@@ -89,7 +88,7 @@ func Load(r io.Reader, config *VarGridConfig, emis *Emissions, addEmisFlux func(
 	}
 }
 
-func (d *InMAP) initFromCells(cells []*Cell, emis *Emissions, config *VarGridConfig, addEmisFlux func(c *Cell, name string, val float64) error) error {
+func (d *InMAP) initFromCells(cells []*Cell, emis *Emissions, config *VarGridConfig, m Mechanism) error {
 	d.init()
 	// Create a list of array indices for each population type.
 	d.popIndices = make(map[string]int)
@@ -108,7 +107,7 @@ func (d *InMAP) initFromCells(cells []*Cell, emis *Emissions, config *VarGridCon
 			go func(p int) {
 				for i := p; i < d.cells.len(); i += nprocs {
 					c := (*d.cells)[i]
-					if err := c.setEmissionsFlux(emis, addEmisFlux); err != nil { // This needs to be called after setNeighbors.
+					if err := c.setEmissionsFlux(emis, m); err != nil { // This needs to be called after setNeighbors.
 						errChan <- err
 						return
 					}

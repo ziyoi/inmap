@@ -37,10 +37,11 @@ func TestConvectiveMixing(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	var m Mech
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, AddEmisFlux),
-			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, AddEmisFlux, nil),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, m),
+			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, m, nil),
 		},
 	}
 	if err := d.Init(); err != nil {
@@ -76,10 +77,11 @@ func TestMixing(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	var m Mech
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, AddEmisFlux),
-			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, AddEmisFlux, nil),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, m),
+			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, m, nil),
 			SetTimestepCFL(),
 		},
 		RunFuncs: []DomainManipulator{
@@ -125,10 +127,11 @@ func TestAdvection(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	var m Mech
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, AddEmisFlux),
-			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, AddEmisFlux, nil),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, m),
+			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, m, nil),
 			SetTimestepCFL(),
 		},
 		RunFuncs: []DomainManipulator{
@@ -186,10 +189,11 @@ func TestMeanderMixing(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	var m Mech
 	d := &InMAP{
 		InitFuncs: []DomainManipulator{
-			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, AddEmisFlux),
-			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, AddEmisFlux, nil),
+			cfg.RegularGrid(ctmdata, pop, popIndices, mr, emis, m),
+			cfg.MutateGrid(mutator, ctmdata, pop, mr, emis, m, nil),
 			SetTimestepCFL(),
 		},
 		RunFuncs: []DomainManipulator{
